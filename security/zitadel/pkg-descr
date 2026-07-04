@@ -1,0 +1,5 @@
+ZITADEL is an open-source identity and access management platform built
+for teams that need more than basic auth. It provides SSO, MFA, Passkeys,
+OIDC, SAML, SCIM, and a multi-tenancy model with an API-first design.
+It uses PostgreSQL as its backing store and includes a built-in web-based
+management console.

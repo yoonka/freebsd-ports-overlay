@@ -1,0 +1,33 @@
+[
+{ type: install
+  message: <<EOM
+Zitadel has been installed.
+
+1. PREPARE POSTGRESQL
+   Zitadel can initialize its own database. Ensure PostgreSQL is running
+   and accessible via the credentials in %%ETCDIR%%/zitadel.yaml.
+
+   Alternatively, create the database manually:
+     sudo -u postgres createuser zitadel
+     sudo -u postgres createdb -O zitadel zitadel
+
+2. CONFIGURE
+   Edit the configuration file:
+     edit %%ETCDIR%%/zitadel.yaml
+
+3. SET THE MASTER KEY (required, exactly 32 characters)
+     sysrc zitadel_masterkey="$(openssl rand -base64 24)"
+
+4. ENABLE AND START
+     sysrc zitadel_enable="YES"
+     service zitadel start
+
+5. CONNECT
+   Management Console: http://localhost:8080/ui/console
+   Health check:       http://localhost:8080/debug/healthz
+
+   For production use, configure TLS or use a reverse proxy.
+   Documentation: https://zitadel.com/docs/self-hosting/manage/configure
+EOM
+}
+]

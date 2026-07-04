@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# PROVIDE: zitadel
+# REQUIRE: LOGIN postgresql
+# KEYWORD: shutdown
+
+#
+# Add the following lines to /etc/rc.conf to enable zitadel:
+#
+# zitadel_enable="YES"
+# zitadel_masterkey="<32-character-encryption-key>"
+#
+# Optional rc.conf variables:
+#
+# zitadel_user (str):       User to run as (default: zitadel)
+# zitadel_group (str):      Group to run as (default: zitadel)
+# zitadel_config (str):     Config file (default: %%ETCDIR%%/zitadel.yaml)
+# zitadel_masterkey (str):  32-char encryption key (REQUIRED)
+# zitadel_args (str):       Extra arguments for zitadel
+# zitadel_log (str):        Log file (default: %%ZITADEL_LOGDIR%%/zitadel.log)
+#
+
+. /etc/rc.subr
+
+name="zitadel"
+rcvar=zitadel_enable
+
+load_rc_config ${name}
+
+: ${zitadel_enable:="NO"}
+: ${zitadel_user:="%%ZITADEL_USER%%"}
+: ${zitadel_group:="%%ZITADEL_GROUP%%"}
+: ${zitadel_config:="%%ETCDIR%%/zitadel.yaml"}
+: ${zitadel_masterkey:=""}
+: ${zitadel_args:=""}
+: ${zitadel_log:="%%ZITADEL_LOGDIR%%/zitadel.log"}
+
+pidfile="/var/run/${name}.pid"
+procname="%%PREFIX%%/bin/zitadel"
+command="/usr/sbin/daemon"
+
+start_precmd="zitadel_precmd"
+
+zitadel_precmd()
+{
+	if [ -z "${zitadel_masterkey}" ]; then
+		echo "ERROR: zitadel_masterkey is not set in /etc/rc.conf"
+		echo "  The masterkey must be exactly 32 characters."
+		echo "  Generate one with: openssl rand -base64 24"
+		echo "  Then set: sysrc zitadel_masterkey=\"<key>\""
+		return 1
+	fi
+
+	if [ ${#zitadel_masterkey} -ne 32 ]; then
+		echo "ERROR: zitadel_masterkey must be exactly 32 characters (got ${#zitadel_masterkey})"
+		return 1
+	fi
+
+	install -d -o ${zitadel_user} -g ${zitadel_group} -m 750 %%ZITADEL_LOGDIR%%
+	install -d -o ${zitadel_user} -g ${zitadel_group} -m 750 %%ZITADEL_DBDIR%%
+	touch ${zitadel_log}
+	chown ${zitadel_user}:${zitadel_group} ${zitadel_log}
+	chmod 640 ${zitadel_log}
+}
+
+command_args="-f -P ${pidfile} -u ${zitadel_user} -o ${zitadel_log} \
+	${procname} start-from-init \
+	--config %%ETCDIR%%/defaults.yaml \
+	--config ${zitadel_config} \
+	--masterkey ${zitadel_masterkey} \
+	${zitadel_args}"
+
+run_rc_command "$1"

@@ -1,0 +1,30 @@
+# Zitadel configuration for FreeBSD
+# Full reference: https://zitadel.com/docs/self-hosting/manage/configure
+# Defaults are in %%ETCDIR%%/defaults.yaml (do not edit).
+# Override only the values you need here.
+
+ExternalSecure: false
+TLS:
+  Enabled: false
+
+# For production, set ExternalSecure: true and either enable TLS here
+# or terminate TLS at a reverse proxy (nginx, caddy, etc).
+#
+# ExternalDomain: auth.example.com
+# ExternalPort: 443
+
+Database:
+  Postgres:
+    Host: localhost
+    Port: 5432
+    Database: zitadel
+    User:
+      Username: zitadel
+      Password: ""
+      SSL:
+        Mode: disable
+    Admin:
+      Username: postgres
+      Password: ""
+      SSL:
+        Mode: disable

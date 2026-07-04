@@ -1,0 +1,5 @@
+bin/zitadel
+%%ETCDIR%%/defaults.yaml
+@sample %%ETCDIR%%/zitadel.yaml.sample
+@dir(%%ZITADEL_USER%%,%%ZITADEL_GROUP%%,750) %%ZITADEL_DBDIR%%
+@dir(%%ZITADEL_USER%%,%%ZITADEL_GROUP%%,750) %%ZITADEL_LOGDIR%%
