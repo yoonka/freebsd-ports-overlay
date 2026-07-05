@@ -1,3 +1,13 @@
-TIMESTAMP = 1783171343
-SHA256 (zitadel-zitadel-v4.15.3_GH0.tar.gz) = 0153e40fb9cd96ecd4a4da579a9b84420c8ccc780169027be5fcd5490fa5fb16
-SIZE (zitadel-zitadel-v4.15.3_GH0.tar.gz) = 165145977
+TIMESTAMP = 1783203543
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protoc-gen-grpc-web-1.5.0-linux-x86_64) = 2e6e074497b221045a14d5a54e9fc910945bfdd1198b12b9fc23686a95671d64
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protoc-gen-grpc-web-1.5.0-linux-x86_64) = 33079312
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protobuf-javascript-4.0.2-linux-x86_64.zip) = e4b0bc2c9fe32a21167c6d84a50df21c2f405552f9a6ed7d5e858d92cac46d22
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protobuf-javascript-4.0.2-linux-x86_64.zip) = 1348506
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protoc-gen-openapiv2-v2.22.0-linux-x86_64) = 72a6fc6a6d130189c549a6d88cbdef407d3ed1c95ab101ffb3d223d8b3778c90
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/protoc-gen-openapiv2-v2.22.0-linux-x86_64) = 8503296
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/pnpm-10.30.3.tgz) = ff0a72140f6a6d66c0b284f6c9560aff605518e28c29aeac25fb262b74331588
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/pnpm-10.30.3.tgz) = 4491640
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/go.mod) = ef44a3d52fe29268322b5897468ce1d488bc2429a8dcaf7ff1aff6bb9e1b77ce
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/go.mod) = 12600
+SHA256 (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/zitadel-zitadel-v4.15.3_GH0.tar.gz) = 0153e40fb9cd96ecd4a4da579a9b84420c8ccc780169027be5fcd5490fa5fb16
+SIZE (go/security_zitadel/zitadel-zitadel-v4.15.3_GH0/zitadel-zitadel-v4.15.3_GH0.tar.gz) = 165145977
