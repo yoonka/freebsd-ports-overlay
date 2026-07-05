@@ -19,7 +19,7 @@ FETCH_DEPENDS=	node:www/node22 \
 RUN_DEPENDS=	${LOCALBASE}/bin/psql:databases/postgresql16-client
 TEST_DEPENDS=	${LOCALBASE}/bin/pg_ctl:databases/postgresql16-server
 
-USES=		go:1.25+,modules,no_targets linux:c7 nodejs:build,22
+USES=		go:1.25+,modules,no_targets linux:rl9 nodejs:build,22
 USE_LINUX=	base:build
 
 # Source from GitHub; Go modules fetched by framework via GO_MODULE
