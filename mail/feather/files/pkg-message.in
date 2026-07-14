@@ -1,0 +1,33 @@
+[
+{ type: install
+  message: <<EOM
+Feather Mail has been installed to %%PREFIX%%/feather.
+
+1. CONFIGURE
+   Sample configs were installed as:
+     %%ETCDIR%%/server.exs.sample
+     %%ETCDIR%%/pipeline.exs.sample
+
+   Copy and edit them:
+     cp %%ETCDIR%%/server.exs.sample %%ETCDIR%%/server.exs
+     cp %%ETCDIR%%/pipeline.exs.sample %%ETCDIR%%/pipeline.exs
+     edit %%ETCDIR%%/server.exs %%ETCDIR%%/pipeline.exs
+
+   Override the config directory with the FEATHER_CONFIG_FOLDER env var.
+
+2. PRIVILEGED PORTS
+   Feather binds SMTP ports 25/465/587. By default the service runs as the
+   unprivileged "feather" user, which CANNOT bind ports below 1024 without
+   extra configuration. Either:
+     - run as root:  sysrc feather_user="root"
+     - or grant the feather user low-port access via mac_portacl(4).
+
+3. ENABLE AND START
+     sysrc feather_enable="YES"
+     service feather start
+
+   Logs:  %%FEATHER_LOGDIR%%/
+   Docs:  https://github.com/yoonka/feather
+EOM
+}
+]

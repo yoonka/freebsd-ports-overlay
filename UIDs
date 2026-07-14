@@ -1,1 +1,2 @@
 zitadel:*:566:566::0:0:Zitadel IAM:/var/db/zitadel:/usr/sbin/nologin
+feather:*:588:588::0:0:Feather Mail:/nonexistent:/usr/sbin/nologin

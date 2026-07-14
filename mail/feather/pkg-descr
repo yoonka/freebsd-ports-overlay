@@ -1,0 +1,9 @@
+Feather Mail is a modern, developer-friendly SMTP mail server framework built
+on Elixir and the BEAM runtime. It exposes a clean, pluggable pipeline of
+adapters for authentication, access control, routing, delivery, spam
+filtering, and logging, letting you assemble a mail server (MSA/MTA) that fits
+your deployment without wrestling with legacy mail-server complexity.
+
+Feather is distributed as a self-contained Erlang/OTP release (the runtime is
+bundled), configured through two Elixir config files (server.exs and
+pipeline.exs).
