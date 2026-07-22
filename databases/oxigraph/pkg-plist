@@ -1,0 +1,12 @@
+bin/oxigraph
+share/man/man1/oxigraph-backup.1.gz
+share/man/man1/oxigraph-convert.1.gz
+share/man/man1/oxigraph-dump.1.gz
+share/man/man1/oxigraph-load.1.gz
+share/man/man1/oxigraph-optimize.1.gz
+share/man/man1/oxigraph-query.1.gz
+share/man/man1/oxigraph-serve-read-only.1.gz
+share/man/man1/oxigraph-serve.1.gz
+share/man/man1/oxigraph-update.1.gz
+share/man/man1/oxigraph.1.gz
+@dir(oxigraph,oxigraph,0750) %%OXIGRAPH_DBDIR%%
