@@ -16,10 +16,16 @@ BUILD_DEPENDS=	git:devel/git \
 		npm:www/npm-node22
 FETCH_DEPENDS=	node:www/node22 \
 		jq:textproc/jq
-RUN_DEPENDS=	${LOCALBASE}/bin/psql:databases/postgresql16-client
-TEST_DEPENDS=	${LOCALBASE}/bin/pg_ctl:databases/postgresql16-server
+# Zitadel talks to PostgreSQL over the network via the pure-Go pgx driver
+# (CGO_ENABLED=0), so it neither links libpq nor needs a pinned client major
+# version. Track the system default PostgreSQL version (DEFAULT_VERSIONS=pgsql,
+# 18 in this tree) while requiring 16 or newer; builders/users can override
+# with DEFAULT_VERSIONS+=pgsql=NN. WANT_PGSQL=client pulls the matching psql
+# client for admin convenience without adding a libpq linkage dependency.
+TEST_DEPENDS=	${LOCALBASE}/bin/pg_ctl:databases/postgresql${PGSQL_VER_NODOT}-server
 
-USES=		go:1.25+,modules,no_targets linux:rl9 nodejs:build,22
+USES=		go:1.25+,modules,no_targets linux:rl9 nodejs:build,22 pgsql:16+
+WANT_PGSQL=	client
 USE_LINUX=	base:build
 
 # Source from GitHub; Go modules fetched by framework via GO_MODULE

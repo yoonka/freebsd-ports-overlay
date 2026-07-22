@@ -28,3 +28,13 @@ Database:
       Password: ""
       SSL:
         Mode: disable
+
+# Use the built-in (v1) login UI served by the ZITADEL binary. ZITADEL v4
+# defaults to Login v2, a separate application served at /ui/v2/login that
+# this single-binary deployment does not run, so its endpoints return 404.
+# This applies at instance creation; to switch an already-initialized
+# instance, change the feature via the API/Console instead.
+DefaultInstance:
+  Features:
+    LoginV2:
+      Required: false

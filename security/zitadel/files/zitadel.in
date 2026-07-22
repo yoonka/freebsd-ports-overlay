@@ -35,7 +35,10 @@ load_rc_config ${name}
 : ${zitadel_args:=""}
 : ${zitadel_log:="%%ZITADEL_LOGDIR%%/zitadel.log"}
 
-pidfile="/var/run/${name}.pid"
+# daemon(8) is run with -u ${zitadel_user}, so it writes the pidfile after
+# dropping privileges; keep it in a directory the run user owns rather than
+# root-owned /var/run.
+pidfile="/var/run/${name}/${name}.pid"
 procname="%%PREFIX%%/bin/zitadel"
 command="/usr/sbin/daemon"
 
@@ -58,12 +61,17 @@ zitadel_precmd()
 
 	install -d -o ${zitadel_user} -g ${zitadel_group} -m 750 %%ZITADEL_LOGDIR%%
 	install -d -o ${zitadel_user} -g ${zitadel_group} -m 750 %%ZITADEL_DBDIR%%
+	install -d -o ${zitadel_user} -g ${zitadel_group} -m 755 /var/run/${name}
 	touch ${zitadel_log}
 	chown ${zitadel_user}:${zitadel_group} ${zitadel_log}
 	chmod 640 ${zitadel_log}
 }
 
-command_args="-f -P ${pidfile} -u ${zitadel_user} -o ${zitadel_log} \
+# rc.subr already runs this command as ${zitadel_user} (it is the rc "user"
+# var, so run_rc_command wraps it in `su -m ${zitadel_user}`). Passing -u to
+# daemon(8) as well makes daemon call setusercontext(3) as a non-root user,
+# which fails ("failed to set user environment"); so do NOT pass -u here.
+command_args="-f -p ${pidfile} -o ${zitadel_log} \
 	${procname} start-from-init \
 	--config %%ETCDIR%%/defaults.yaml \
 	--config ${zitadel_config} \
