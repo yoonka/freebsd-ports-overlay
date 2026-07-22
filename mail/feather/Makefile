@@ -17,8 +17,10 @@ ONLY_FOR_ARCHS=	amd64 aarch64
 # (fetch phase has network) and at build time to assemble the release. The CA
 # bundle is required so the fetch hook can talk to hex.pm over TLS.
 FETCH_DEPENDS=	elixir:lang/elixir \
+		erl:lang/erlang \
 		${LOCALBASE}/share/certs/ca-root-nss.crt:security/ca_root_nss
-BUILD_DEPENDS=	elixir:lang/elixir
+BUILD_DEPENDS=	elixir:lang/elixir \
+		erl:lang/erlang
 
 # ssl: the bundled ERTS crypto NIF links against OpenSSL.
 USES=		gmake ssl
@@ -101,10 +103,19 @@ feather-vendor-deps:
 				HEX_HOME=${WRKDIR}/.vendor-mix \
 				MIX_ENV=prod \
 				mix deps.get --only prod; \
+		${ECHO_MSG} "===>  Pre-fetching rebar3 plugins (network)"; \
+		cd ${WRKDIR}/.vendor/${WRKSRC:T} && \
+			${SETENV} HOME=${WRKDIR}/.vendor \
+				MIX_HOME=${WRKDIR}/.vendor-mix \
+				HEX_HOME=${WRKDIR}/.vendor-mix \
+				MIX_ENV=prod \
+				mix deps.compile iconv 2>/dev/null || ${TRUE}; \
 		${ECHO_MSG} "===>  Archiving vendored dependencies"; \
+		${MKDIR} ${WRKDIR}/.vendor/.cache; \
 		cd ${WRKDIR}/.vendor/${WRKSRC:T} && \
 			${TAR} -czf ${DISTDIR}/${DIST_SUBDIR}/${_DEPS_DISTFILE} \
-				deps -C ${WRKDIR} .vendor-mix; \
+				deps -C ${WRKDIR} .vendor-mix \
+				-C ${WRKDIR}/.vendor .cache; \
 		${RM} -r ${WRKDIR}/.vendor ${WRKDIR}/.vendor-mix; \
 	fi
 
@@ -118,6 +129,8 @@ post-extract:
 	${TAR} -xzf ${DISTDIR}/${DIST_SUBDIR}/${_DEPS_DISTFILE} -C ${WRKSRC} deps
 	${TAR} -xzf ${DISTDIR}/${DIST_SUBDIR}/${_DEPS_DISTFILE} \
 		-C ${WRKDIR} .vendor-mix
+	${TAR} -xzf ${DISTDIR}/${DIST_SUBDIR}/${_DEPS_DISTFILE} \
+		-C ${WRKDIR} .cache 2>/dev/null || ${TRUE}
 	@${MV} ${WRKDIR}/.vendor-mix/* ${_MIX_HOME}/ 2>/dev/null || true
 
 do-build:
@@ -153,5 +166,14 @@ post-install:
 	@${FIND} ${STAGEDIR}${FEATHER_HOME} -type f \
 		\( -name '*.so' -o -path '*/erts-*/bin/*' \) \
 		-exec ${STRIP_CMD} {} \; 2>/dev/null || ${TRUE}
+
+# Generate plist entries for the self-contained release tree. The exact
+# set of bundled ERTS/OTP files varies with the Erlang version, so we
+# cannot hardcode them in pkg-plist.
+post-stage:
+	@cd ${STAGEDIR}${PREFIX} && \
+		${FIND} feather -not -type d | ${SORT} >> ${TMPPLIST}
+	@cd ${STAGEDIR}${PREFIX} && \
+		${FIND} feather -type d -depth | ${SED} 's/^/@dir /' >> ${TMPPLIST}
 
 .include <bsd.port.mk>
