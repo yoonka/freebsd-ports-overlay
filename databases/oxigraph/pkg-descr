@@ -1,0 +1,9 @@
+Oxigraph is a graph database implementing the SPARQL standard.
+
+It offers a SPARQL query engine and an HTTP server implementing the
+SPARQL 1.1 Protocol and SPARQL 1.1 Graph Store HTTP Protocol. The
+database is backed by RocksDB for durable storage.
+
+Supported RDF formats include Turtle, TriG, N-Triples, N-Quads,
+RDF/XML, and JSON-LD. The server provides a web UI with a SPARQL
+query interface.

@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# PROVIDE: oxigraph
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# oxigraph_enable (bool):	Set to NO by default.
+#				Set it to YES to enable oxigraph.
+# oxigraph_bind (string):	Set to "localhost:7878" by default.
+#				Set it to the bind address and port.
+
+. /etc/rc.subr
+
+name=oxigraph
+rcvar=oxigraph_enable
+
+load_rc_config $name
+
+: ${oxigraph_enable:="NO"}
+: ${oxigraph_bind:="localhost:7878"}
+: ${oxigraph_user:="%%OXIGRAPH_USER%%"}
+: ${oxigraph_group:="%%OXIGRAPH_GROUP%%"}
+: ${oxigraph_data_dir:="%%OXIGRAPH_DBDIR%%"}
+
+# rc.subr runs this command as ${oxigraph_user} (the ${name}_user rc var, via
+# `su -m`), so daemon(8) already runs unprivileged. Do NOT also pass -u to
+# daemon: a second setusercontext(3) as a non-root user fails. For the same
+# reason the pidfile must live in a directory the run user owns, not the
+# root-owned /var/run.
+pidfile="/var/run/${name}/${name}.pid"
+command="/usr/sbin/daemon"
+command_args="-p ${pidfile} %%PREFIX%%/bin/oxigraph serve --location ${oxigraph_data_dir} --bind ${oxigraph_bind}"
+
+start_precmd="oxigraph_precmd"
+
+oxigraph_precmd()
+{
+	install -d -o ${oxigraph_user} -g ${oxigraph_group} -m 0750 ${oxigraph_data_dir}
+	install -d -o ${oxigraph_user} -g ${oxigraph_group} -m 0755 /var/run/${name}
+}
+
+run_rc_command "$1"
