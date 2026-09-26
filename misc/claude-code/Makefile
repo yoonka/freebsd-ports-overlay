@@ -76,7 +76,7 @@ EXTRACTED_JS=		${WRKDIR}/extracted-js
 APPDIR=			${PREFIX}/lib/node_modules/${PACKAGE_NAME}
 SCRIPTS_ENV+=		EXTRACTED_JS=${EXTRACTED_JS} APPDIR=${APPDIR}
 
-SUB_FILES=	claude
+SUB_FILES=	bun-launcher claude pkg-message
 
 find-new-version:
 	@TAB=$$(printf '\t'); \
@@ -103,6 +103,10 @@ do-install:
 		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/bun-ant-shim.cjs
 	# Install wrapper script
 	${INSTALL_SCRIPT} ${WRKDIR}/claude ${STAGEDIR}${PREFIX}/bin/claude
+	# Install the launcher bin/claude has claude start its copies through
+	@${MKDIR} ${STAGEDIR}${PREFIX}/libexec/claude-code
+	${INSTALL_SCRIPT} ${WRKDIR}/bun-launcher \
+		${STAGEDIR}${PREFIX}/libexec/claude-code/bun-launcher
 
 post-install:
 	# Append content-hashed files dynamically so the plist stays version-agnostic.

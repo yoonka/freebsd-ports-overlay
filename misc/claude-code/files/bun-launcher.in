@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# CLAUDE_CODE_PROCESS_WRAPPER for the copies of itself claude starts, set by
+# bin/claude. They arrive here as `bun .../cli ...` and get the bun options
+# bin/claude gives the first one; anything else is run as it is.
+#
+
+if [ "$1" = %%LOCALBASE%%/bin/bun ]; then
+	shift
+	exec %%LOCALBASE%%/bin/bun --no-env-file --config=/dev/null "$@"
+fi
+exec "$@"

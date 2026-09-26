@@ -1,0 +1,11 @@
+[
+{ type: install
+  message: <<EOM
+`claude self-hosted-runner` and `claude plugin eval` start further claude
+processes that read any .env and bunfig.toml in their working directory: a
+.env can add variables such as ANTHROPIC_BASE_URL, and a bunfig.toml preload
+runs code inside claude. For the runner, --exec-path %%PREFIX%%/bin/claude
+avoids this.
+EOM
+}
+]

@@ -9,3 +9,4 @@ lib/node_modules/@anthropic-ai/claude-code/hljsBundle.generated.min.js
 lib/node_modules/@anthropic-ai/claude-code/mermaid.min.js
 lib/node_modules/@anthropic-ai/claude-code/payload.template.html.asset
 lib/node_modules/@anthropic-ai/claude-code/src/plugins/functionHooks/hooks-worker/hooks-worker.js
+libexec/claude-code/bun-launcher

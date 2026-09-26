@@ -16,7 +16,16 @@ export DISABLE_AUTOUPDATER
 # non-bash shells like tcsh that claude's tool runner may not handle correctly).
 export SHELL=%%LOCALBASE%%/bin/bash
 
+# Claude starts further copies of itself -- background sessions, the daemon and
+# its workers, teammates, relaunches -- as `bun .../cli ...`, through the
+# launcher named here. Ours gives them the bun options used below. A launcher
+# of your own takes precedence, and then has to add those options itself.
+: ${CLAUDE_CODE_PROCESS_WRAPPER:=%%PREFIX%%/libexec/claude-code/bun-launcher}
+export CLAUDE_CODE_PROCESS_WRAPPER
+
 # Run the extracted code on FreeBSD's own Bun; cli loads what it needs beyond
-# stock Bun by itself.
-exec %%LOCALBASE%%/bin/bun \
+# stock Bun by itself. Without the two options, bun would read any .env files
+# and bunfig.toml in the current directory -- the user's project, not ours --
+# and a bunfig.toml there can preload code into claude before it starts.
+exec %%LOCALBASE%%/bin/bun --no-env-file --config=/dev/null \
     %%PREFIX%%/lib/node_modules/@anthropic-ai/claude-code/cli "$@"
