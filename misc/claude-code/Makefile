@@ -64,11 +64,13 @@ USE_CURL_USER_AGENT_BUILD_DEPENDS=	curl:ftp/curl
 
 PACKAGE_NAME=		@anthropic-ai/claude-code
 
-# Where the extracted JS lives after post-extract. The unpacking and the
-# Bun-to-Node rewrite are in scripts/post-extract, which bsd.port.mk picks up
-# automatically; SCRIPTS_ENV already carries WRKDIR, WRKSRC and PREFIX.
+# Where the extracted JS lives after post-extract, and where it is installed.
+# The unpacking and the Bun-to-Node rewrite are in scripts/post-extract,
+# which bsd.port.mk picks up automatically; SCRIPTS_ENV already carries
+# WRKDIR, WRKSRC and PREFIX.
 EXTRACTED_JS=		${WRKDIR}/extracted-js
-SCRIPTS_ENV+=		EXTRACTED_JS=${EXTRACTED_JS}
+APPDIR=			${PREFIX}/lib/node_modules/${PACKAGE_NAME}
+SCRIPTS_ENV+=		EXTRACTED_JS=${EXTRACTED_JS} APPDIR=${APPDIR}
 
 # npm USES extracts node_modules alongside the extracted JS so COPYTREE picks them up
 NPM_EXTRACT_WRKSRC=	${EXTRACTED_JS}

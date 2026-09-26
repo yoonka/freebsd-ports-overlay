@@ -8,11 +8,13 @@
 # a sequence of tab-indented make(1) lines.
 #
 # bsd.port.mk runs it via ${SH} with SCRIPTS_ENV in the environment, which
-# supplies WRKDIR, WRKSRC and PREFIX; EXTRACTED_JS is added by the port.
+# supplies WRKDIR, WRKSRC and PREFIX; EXTRACTED_JS and APPDIR are added by the
+# port.
 
 set -e
 
 : "${EXTRACTED_JS:?not set}" "${WRKSRC:?not set}" "${WRKDIR:?not set}" "${PREFIX:?not set}"
+: "${APPDIR:?not set}"
 
 root=$EXTRACTED_JS/root
 
@@ -29,10 +31,16 @@ unhare -o "$EXTRACTED_JS" -x '*.node' "$WRKSRC/claude"
 # The rewrite, written once to a file so the plain and the compressed passes
 # cannot drift apart:
 #
-#   - /$bunfs/root/ absolute paths become relative
+#   - /$bunfs/root/, the root of the file system embedded in the executable,
+#     becomes APPDIR, where do-install puts the same tree. Not every such path
+#     is an import specifier that could equally be made relative: the chunks
+#     of src/plugins/functionHooks/hooks-worker/hooks-worker.js live three
+#     directories up from it, and HOOKS_WORKER_URL is turned into a URL with
+#     new URL(`file://${path}`), which needs an absolute path.
 #   - /usr/local references follow our PREFIX. This matters in documentation
 #     too, not just in code: a skill telling the reader to "tar -xz -C
 #     /usr/local/bin" means the place local software goes on *this* system.
+#     This rule comes first, so that it cannot also rewrite APPDIR.
 #   - import.meta.require, for which Node has no per-module hook, is redirected
 #     to the global that bun-polyfill.cjs installs. Rewriting the call sites
 #     beats prepending a prologue to every file: only 65 of the ~1770 chunks
@@ -49,8 +57,8 @@ unhare -o "$EXTRACTED_JS" -x '*.node' "$WRKSRC/claude"
 # by the COPYTREE in do-install and end up in the package.
 sed_script=$WRKDIR/bun-to-node.sed
 cat > "$sed_script" <<EOF
-s|/*\$bunfs/root/*|./|g
 s|/usr/local|$PREFIX|g
+s|/*\$bunfs/root/*|$APPDIR/|g
 s|import\\.meta\\.require|globalThis.__bunRequire|g
 s|import\\.meta\\.dir[[:>:]]|import.meta.dirname|g
 EOF
