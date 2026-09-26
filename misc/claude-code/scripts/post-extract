@@ -133,3 +133,36 @@ fi
 
 sed -i '' -E "s/$gate/function \1(){return!1}/" "$gate_files"
 echo "===>   disabled the argv0 grep/find shims in ${gate_files#$root/}"
+
+# The built-in plugins written as hooks modules (agents-md, telemetry,
+# responsive mode, the diff panel, the security default and others) are
+# declared through one helper, which takes the module from the bundle inside
+# Anthropic's executable and otherwise from its TypeScript source, as in
+# Anthropic's source tree:
+#
+#	var x5=(e,o,r)=>Ed()?kt(o,r(),e):{module:o,folder:e};
+#
+# Ed() is Bun.isStandaloneExecutable, false here, and the release carries no
+# such sources, so every one of them would fail to load ("agents-md: hooks
+# module did not load: .../hooks/register.ts: no such file") and, for one,
+# AGENTS.md files would never be read. Make the helper always take the
+# bundled module. Matched by shape and fatal unless it matches exactly once,
+# as for the gate above.
+id='[A-Za-z0-9_$]+'
+mods="=\\(($id),($id),($id)\\)=>$id\\(\\)\\?($id)\\(($id),($id)\\(\\),($id)\\):\\{module:$id,folder:$id\\}"
+
+mods_files=$(find "$root" -type f -name '*.js' -exec grep -lE "$mods" {} + || :)
+mods_count=$(printf %s "$mods_files" | grep -c . || :)
+if [ "$mods_count" = 1 ]; then
+	mods_count=$(grep -oE "$mods" "$mods_files" | grep -c . || :)
+fi
+
+if [ "$mods_count" != 1 ]; then
+	echo "post-extract: expected the built-in hooks module helper exactly once," >&2
+	echo "found it $mods_count times. Check how built-in plugins get their hooks" >&2
+	echo "module outside the executable (see the comment above)." >&2
+	exit 1
+fi
+
+sed -i '' -E "s/$mods/=(\1,\2,\3)=>\4(\5,\6(),\7)/" "$mods_files"
+echo "===>   made built-in hooks modules load from the bundle in ${mods_files#$root/}"
