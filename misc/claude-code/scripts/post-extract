@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Unpack the JS out of the Bun standalone binary and adapt it for Node.js.
+# Unpack the JS out of the Bun standalone binary and adapt it for stock Bun.
 #
 # This lives in scripts/ rather than in a Makefile target because the
 # compressed documentation has to be round-tripped through the same rewrite as
@@ -19,13 +19,13 @@ set -e
 root=$EXTRACTED_JS/root
 
 # The bundled native addons are excluded rather than extracted and deleted
-# afterwards. They are Linux x86-64 glibc shared objects, so the FreeBSD-native
-# node cannot dlopen them on any architecture -- not even amd64 with the
-# Linuxulator, because ELF branding is per-process and node itself is
+# afterwards. They are Linux x86-64 glibc shared objects, so FreeBSD's Bun
+# cannot dlopen them on any architecture -- not even amd64 with the
+# Linuxulator, because ELF branding is per-process and bun itself is
 # FreeBSD-branded. Every load site is wrapped in try/catch, so the clipboard and
 # audio features degrade cleanly rather than erroring. Images no longer come
 # through an addon at all: 2.1.268 dropped image-processor.js for Bun.Image,
-# which the polyfill does not implement, and that call sits in a try of its own.
+# which stock Bun provides.
 unhare -o "$EXTRACTED_JS" -x '*.node' "$WRKSRC/claude"
 
 # The rewrite, written once to a file so the plain and the compressed passes
@@ -41,26 +41,16 @@ unhare -o "$EXTRACTED_JS" -x '*.node' "$WRKSRC/claude"
 #     too, not just in code: a skill telling the reader to "tar -xz -C
 #     /usr/local/bin" means the place local software goes on *this* system.
 #     This rule comes first, so that it cannot also rewrite APPDIR.
-#   - import.meta.require, for which Node has no per-module hook, is redirected
-#     to the global that bun-polyfill.cjs installs. Rewriting the call sites
-#     beats prepending a prologue to every file: only 65 of the ~1770 chunks
-#     call it, and a prologue also landed above the YAML frontmatter of every
-#     skill .md.
-#   - import.meta.dir is Bun's spelling of the directory holding the module.
-#     Node calls it import.meta.dirname -- which this same bundle uses 139
-#     times -- and leaves .dir undefined, so the five call sites that kept the
-#     Bun spelling registered every builtin plugin from path.join(undefined,
-#     ...) and 2.1.282 died on startup. The word-boundary match is what keeps
-#     the rewrite off the .dirname spelling.
+#
+# import.meta.require and import.meta.dir are left as they are: they are Bun's
+# own, and only needed rewriting for node.
 #
 # It is kept in WRKDIR rather than under $root, so that it cannot be picked up
 # by the COPYTREE in do-install and end up in the package.
-sed_script=$WRKDIR/bun-to-node.sed
+sed_script=$WRKDIR/bunfs.sed
 cat > "$sed_script" <<EOF
 s|/usr/local|$PREFIX|g
 s|/*\$bunfs/root/*|$APPDIR/|g
-s|import\\.meta\\.require|globalThis.__bunRequire|g
-s|import\\.meta\\.dir[[:>:]]|import.meta.dirname|g
 EOF
 
 find "$root" -type f \( -name '*.js' -o -name cli -o -name '*.md' -o -name '*.txt' \) \
@@ -100,16 +90,16 @@ rm -f "$plain" "$edited"
 # `exec -a ugrep` / `exec -a bfs`, and -- since bash can then search on its own
 # -- hides the Grep and Glob tools from the model.
 #
-# Neither half survives the move to node(1). CLAUDE_CODE_EXECPATH is assigned
-# from process.execPath, which here is node itself, so the shims hand ugrep and
-# bfs arguments to node, which parses them as its own and exits:
+# Neither half survives outside that binary. CLAUDE_CODE_EXECPATH is assigned
+# from process.execPath, which here is bun(1) itself, and stock Bun has no
+# argv[0] dispatch, so the shims hand ugrep and bfs arguments to bun, which
+# parses them as its own and exits:
 #
 #	$ printf 'foo\nbar\n' | grep bar
-#	ugrep: bad option: -G
+#	error: Invalid Argument '-G'
 #
-# (node reports the argv[0] it was handed, which is what makes this read like a
-# complaint from ugrep). The user is left with a broken grep, a broken find and
-# no search tools to fall back on.
+# The user is left with a broken grep, a broken find and no search tools to
+# fall back on.
 #
 # So force the feature's gate to false. That drops the shims, leaving bash with
 # the real grep(1) and find(1), and brings back Grep and Glob, which search
@@ -166,3 +156,27 @@ fi
 
 sed -i '' -E "s/$mods/=(\1,\2,\3)=>\4(\5,\6(),\7)/" "$mods_files"
 echo "===>   made built-in hooks modules load from the bundle in ${mods_files#$root/}"
+
+# Load bun-ant-freebsd.cjs, which do-install puts in APPDIR, ahead of the rest
+# of the bundle. It provides what the bundle expects from Anthropic's own build
+# of Bun and stock Bun lacks (see the file itself). The import has to be in the
+# bundle's entry points themselves: claude starts further copies of itself as
+# `bun cli ...`, which would not inherit a --preload given to the first one,
+# and a Worker starts with globals of its own. The entry points are cli and the
+# workers under src/, the only modules outside the flat directory of chunks.
+# The import goes below the first line, so that the "// @bun" pragma there,
+# which tells Bun the file needs no transpiling, stays in effect.
+for f in "$root/cli" $(find "$root/src" -type f -name '*.js'); do
+	if [ "$(head -c 7 "$f")" != "// @bun" ]; then
+		echo "post-extract: ${f#$root/} does not start with a // @bun pragma;" >&2
+		echo "check where the import of bun-ant-freebsd.cjs has to go." >&2
+		exit 1
+	fi
+	{
+		head -n 1 "$f"
+		echo "import \"$APPDIR/bun-ant-freebsd.cjs\";"
+		tail -n +2 "$f"
+	} > "$WRKDIR/entry.new"
+	mv "$WRKDIR/entry.new" "$f"
+	echo "===>   made ${f#$root/} load bun-ant-freebsd.cjs first"
+done

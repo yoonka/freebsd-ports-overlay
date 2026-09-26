@@ -3,6 +3,8 @@ terminal, understands your codebase, and helps you code faster by executing
 routine tasks, explaining complex code, and handling git workflows - all
 through natural language commands.
 
-claude is a closed source Linux binary working through Linuxlator.
+claude is closed source. This port extracts its JavaScript from the Linux
+executable Anthropic distributes and runs it natively on FreeBSD's own Bun,
+without the Linuxulator.
 
 This port replaces the NodeJS-based misc/claude-code-legacy port.

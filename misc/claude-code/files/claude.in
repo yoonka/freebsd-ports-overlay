@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# FreeBSD ports wrapper for Anthropic Claude Code (native Node.js)
+# FreeBSD ports wrapper for Anthropic Claude Code (native Bun)
 #
 
 export USE_BUILTIN_RIPGREP=false
@@ -16,7 +16,7 @@ export DISABLE_AUTOUPDATER
 # non-bash shells like tcsh that claude's tool runner may not handle correctly).
 export SHELL=%%LOCALBASE%%/bin/bash
 
-# Load Bun polyfill before cli (provides Bun-specific APIs for Bun-compiled code)
-exec %%PREFIX%%/bin/node \
-    --require %%PREFIX%%/lib/node_modules/@anthropic-ai/claude-code/bun-polyfill.cjs \
+# Run the extracted code on FreeBSD's own Bun; cli loads what it needs beyond
+# stock Bun by itself.
+exec %%LOCALBASE%%/bin/bun \
     %%PREFIX%%/lib/node_modules/@anthropic-ai/claude-code/cli "$@"

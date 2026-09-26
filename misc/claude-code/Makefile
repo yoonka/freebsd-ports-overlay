@@ -20,10 +20,14 @@ LICENSE_FILE_GPLv3=		${CLAWGOD_WRKSRC}/LICENSE
 # dependency has to be satisfied by the extract phase rather than the build one.
 EXTRACT_DEPENDS=${LOCALBASE}/bin/unhare:archivers/unhare
 
+# post-install checks the bundle against the bun it will run on.
+BUILD_DEPENDS=	${LOCALBASE}/bin/bun:lang/bun
 RUN_DEPENDS=	${LOCALBASE}/bin/bash:shells/bash \
+		${LOCALBASE}/bin/bun:lang/bun \
 		${LOCALBASE}/bin/rg:textproc/ripgrep
 
-USES=		nodejs:run npm:npm,build
+ONLY_FOR_ARCHS=		aarch64 amd64
+ONLY_FOR_ARCHS_REASON=	runs on lang/bun, which is only available for these
 
 # The linux-x64 package is fetched regardless of our own architecture,
 # because we extract the actual NodeJS code from it anyway.
@@ -65,15 +69,12 @@ USE_CURL_USER_AGENT_BUILD_DEPENDS=	curl:ftp/curl
 PACKAGE_NAME=		@anthropic-ai/claude-code
 
 # Where the extracted JS lives after post-extract, and where it is installed.
-# The unpacking and the Bun-to-Node rewrite are in scripts/post-extract,
-# which bsd.port.mk picks up automatically; SCRIPTS_ENV already carries
-# WRKDIR, WRKSRC and PREFIX.
+# The unpacking and the rewrite for stock Bun are in scripts/post-extract,
+# which bsd.port.mk picks up automatically; SCRIPTS_ENV already carries WRKDIR,
+# WRKSRC and PREFIX.
 EXTRACTED_JS=		${WRKDIR}/extracted-js
 APPDIR=			${PREFIX}/lib/node_modules/${PACKAGE_NAME}
 SCRIPTS_ENV+=		EXTRACTED_JS=${EXTRACTED_JS} APPDIR=${APPDIR}
-
-# npm USES extracts node_modules alongside the extracted JS so COPYTREE picks them up
-NPM_EXTRACT_WRKSRC=	${EXTRACTED_JS}
 
 SUB_FILES=	claude
 
@@ -92,27 +93,12 @@ do-install:
 	# Install extracted JS tree into node_modules
 	@cd ${EXTRACTED_JS}/root && \
 		${COPYTREE_SHARE} . ${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}
-	# The npm dependencies go below our own directory, where node finds them
-	# by walking up from the entry point, rather than into the shared
-	# lib/node_modules. That directory is not ours: www/node26 owns npm and
-	# corepack there, other ports keep scoped trees of their own, and
-	# dropping generic names like semver, yaml and strip-ansi beside them
-	# both risks a pkg conflict and lets an unrelated port resolve our copy
-	# by accident -- misc/claude-science did exactly that, and only stopped
-	# when it moved out.
-	@cd ${EXTRACTED_JS}/node_modules && ${COPYTREE_SHARE} . \
-		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/node_modules
-	# npm adds .bin shims for dependencies that also ship a CLI (semver, yaml).
-	# They are not on PATH here and the polyfill only needs the libraries.
-	@${RM} -r ${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/node_modules/.bin
-	# Add ESM type declaration so Node.js treats the .js files as ES modules
-	@${ECHO_CMD} '{"type":"module"}' > \
-		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/package.json
-	# Install Bun API polyfill (provides Bun-specific APIs like Bun.stringWidth for Bun-compiled code)
-	${INSTALL_DATA} ${FILESDIR}/bun-polyfill.cjs \
-		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/bun-polyfill.cjs
-	# Install the Bun.ant shim beside it; bun-polyfill.cjs requires it by
-	# relative path once the Bun global exists.
+	# Install what the bundle expects from Anthropic's Bun beyond stock Bun;
+	# post-extract has made the entry points import it.
+	${INSTALL_DATA} ${FILESDIR}/bun-ant-freebsd.cjs \
+		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/bun-ant-freebsd.cjs
+	# Install the Bun.ant shim beside it; bun-ant-freebsd.cjs requires it by
+	# relative path.
 	${INSTALL_DATA} ${CLAWGOD_SHIM} \
 		${STAGEDIR}${PREFIX}/lib/node_modules/${PACKAGE_NAME}/bun-ant-shim.cjs
 	# Install wrapper script
@@ -139,6 +125,10 @@ post-install:
 		-o -name '*-????????.mjs' \
 		-o -name '*-????????.py' -o -name '*-????????.py.zst' \) \
 		>> ${TMPPLIST}
+	# Fail here rather than at run time when a release starts using a Bun
+	# API that stock Bun and bun-ant-freebsd.cjs do not provide.
+	@${LOCALBASE}/bin/bun ${FILESDIR}/check-bun-api.js \
+		${STAGEDIR}${APPDIR}
 
 post-install-USE_CURL_USER_AGENT-on:
 	# Patch the module that returns the Claude-User agent string to use curl's
