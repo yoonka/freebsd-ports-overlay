@@ -1,4 +1,6 @@
 bin/claude
+lib/node_modules/@anthropic-ai/claude-code/anthropicSans400.woff2.asset
+lib/node_modules/@anthropic-ai/claude-code/anthropicSerif400.woff2.asset
 lib/node_modules/@anthropic-ai/claude-code/audio-capture.js
 lib/node_modules/@anthropic-ai/claude-code/bun-ant-freebsd.cjs
 lib/node_modules/@anthropic-ai/claude-code/bun-ant-shim.cjs
