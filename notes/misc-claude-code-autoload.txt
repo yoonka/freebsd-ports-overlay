@@ -1,0 +1,317 @@
+misc/claude-code on Bun: .env and bunfig.toml in the working directory
+=====================================================================
+
+Status as of 2026-09-26, Claude Code 2.1.283 on Bun 1.4.2. Complements
+notes/misc-claude-code.txt, which describes the port as a whole.
+
+
+Summary
+-------
+
+Plain bun loads .env files and bunfig.toml from the directory it starts
+in. For claude that is the user's project, so project files can change
+claude's environment or run code inside it. The port stops this for the
+claude the user starts and for almost every further claude process that
+claude starts itself. Two commands still start processes that are not
+covered: `claude self-hosted-runner` (its sessions, its background start,
+and its setup and doctor subcommands) and `claude plugin eval`. Both are
+new and aimed at few users: the runner at Team and Enterprise
+organisations running self-hosted environments, plugin eval at plugin
+authors. pkg-message warns about them and gives the runner workaround;
+fixing them properly is left for later, and one of the options below may
+become unnecessary if Anthropic routes them through its own wrapper hook.
+
+
+The problem
+-----------
+
+When bun runs a script, it reads from its current directory:
+
+- .env: variables not already set in the environment are added to it.
+  A variable that is already set keeps its value. A project's .env can
+  therefore add, for example, ANTHROPIC_BASE_URL (sending claude's API
+  traffic, with the user's credentials, elsewhere), ANTHROPIC_API_KEY
+  (billing to another account), or proxy variables.
+- bunfig.toml: in particular preload = ["./file.js"], which runs that
+  file inside the process before the script. For claude that means code
+  from a cloned repository running before the workspace trust dialog.
+
+This only happens with the bundle running on plain bun, i.e. with this
+port:
+
+- Anthropic's executable is a Bun standalone executable built with
+  autoloading of both files turned off. Its copies of itself are the same
+  executable, so they have the same setting.
+- node (attachment 275119, misc/claude-code-legacy) loads neither file
+  unless asked to.
+- On plain bun the equivalent is two command line options,
+  --no-env-file and --config=/dev/null. They apply only to the process
+  they are given to.
+
+claude starts further copies of itself as
+[process.execPath, process.argv[1], ...], i.e. `bun .../cli ...`,
+bypassing bin/claude and its options. process.execPath is always the
+bun binary that is running, even when bun was started through a symlink
+or a wrapper script.
+
+
+What the port does now
+----------------------
+
+- bin/claude runs `bun --no-env-file --config=/dev/null .../cli`.
+- bin/claude sets CLAUDE_CODE_PROCESS_WRAPPER (unless already set) to
+  libexec/claude-code/bun-launcher. That variable is Anthropic's
+  "corporate launcher" hook (added in 2.1.208): claude's common
+  self-spawn helper runs `launcher <command>` instead of `<command>`.
+  The port's launcher adds the two options when the command is bun.
+  A user's own CLAUDE_CODE_PROCESS_WRAPPER takes precedence and then has
+  to add the options itself.
+- pkg-message names the two uncovered commands and the runner
+  workaround.
+
+
+Impact
+------
+
+What starts                                     New process?  Reads them?
+----------------------------------------------  ------------  -----------
+the claude the user runs                        yes           no (options)
+subagents (Agent tool), in-process teammates    no            no
+background sessions, the daemon and its         yes           no (launcher)
+  workers, split-pane teammates, --resume
+  relaunches, Remote Control sessions,
+  scheduled tasks, the tool host, plugin test,
+  shell completion
+self-hosted runner: its sessions, its           yes           yes
+  background start, setup, doctor
+plugin eval: the claude runs it evaluates       yes           yes
+
+"Reads them" means the files in that new process's own working
+directory. For the runner that is inside the repositories it checks out
+for remotely assigned sessions (under --base-dir, default /workspace),
+which is where it matters most. That subagents run in-process is from
+Anthropic's documentation, not checked in the code.
+
+Workaround for the runner: start it with --exec-path PREFIX/bin/claude
+(or SELF_HOSTED_RUNNER_EXEC_PATH). The runner then starts that program
+in place of the Claude Code binary for each session, with claude's
+arguments and without the cli path, which is what bin/claude expects.
+It does not cover the runner's background start or setup and doctor.
+Not tested with a real self-hosted environment. plugin eval has no such
+option.
+
+
+The runner's other assumption
+-----------------------------
+
+Separately from .env and bunfig.toml, the runner assumes that
+process.execPath is the claude executable:
+
+- It sets CLAUDE_RUNNER_CLAUDE_BIN=process.execPath for sessions.
+  Anthropic's documentation tells runner wrapper scripts and `command`
+  hooks to end with exec "$CLAUDE_RUNNER_CLAUDE_BIN" "$@". On this port
+  that runs bun with claude's arguments, without the cli path.
+- The commit-signing shim that --configure-git installs runs
+  "$BIN" self-hosted-runner code-sign, with BIN from the same variable,
+  so it also runs bun instead of claude.
+
+Found by reading the code; not tested. This affects 275119 the same way,
+where process.execPath is node. Options 1b, 2 and 3 below fix it; 1a and
+5 do not.
+
+
+What was checked
+----------------
+
+In a directory with a .env (FOO=from-dotenv, or ANTHROPIC_API_KEY and
+ANTHROPIC_BASE_URL pointing at a local nc listener) and a bunfig.toml
+with preload = ["./evil.js"], evil.js printing a line to stderr:
+
+Case                                               preload    .env
+-------------------------------------------------  ---------  ------
+plain bun script                                   ran        loaded
+bun --no-env-file --config=/dev/null script        no         no
+stock bun standalone (bun build --compile)         ran        loaded
+same with --no-compile-autoload-dotenv and
+  --no-compile-autoload-bunfig                     no         no
+Anthropic's Linux claude 2.1.283                   no         no (*)
+port: bun .../cli -p                               -          loaded
+port: bun --no-env-file --config=/dev/null
+  .../cli -p                                       -          no
+port: claude's self-spawn helper, through the
+  launcher                                         no         -
+port: same command, without the launcher          ran        -
+
+(*) With the same variables set in the environment instead, the request
+reached the listener, so the probe itself works.
+
+Also checked:
+
+- A .env value does not override a variable that is already set.
+- process.execPath is the real bun binary when bun is started directly,
+  through a symlink, or through a shell script that execs it.
+- process.execPath is writable from JavaScript (a plain property).
+- In a standalone executable, process.execPath is the executable itself
+  and Bun.isStandaloneExecutable is true.
+- Claude accepts the port's launcher: no configuration error, and the
+  helper builds `bun-launcher bun .../cli ...`; the TUI starts normally
+  with the variable set.
+
+To reproduce the directory:
+
+    mkdir probe && cd probe
+    printf 'FOO=from-dotenv\n' > .env
+    printf 'preload = ["./evil.js"]\n' > bunfig.toml
+    printf 'console.error("PRELOAD RAN");\n' > evil.js
+    printf 'console.log("FOO=" + process.env.FOO);\n' > /tmp/main.js
+    bun /tmp/main.js      # prints PRELOAD RAN and FOO=from-dotenv
+    bun --no-env-file --config=/dev/null /tmp/main.js   # FOO=undefined
+
+
+Where to find the code
+----------------------
+
+Minified names change with every release; search for these strings in
+the extracted bundle instead (2.1.283 file names in brackets):
+
+- Common self-spawn helper, which applies CLAUDE_CODE_PROCESS_WRAPPER:
+  `prefixArgs:[e],target:e` [chunk-nwecr4zz.js]. The wrapper setting
+  itself: `="CLAUDE_CODE_PROCESS_WRAPPER"` [chunk-dkzzjdtt.js].
+- Runner sessions: `execArgs:[]};return{execPath:process.execPath` and
+  `CLAUDE_RUNNER_CLAUDE_BIN:process.execPath` [chunk-3ts0v7st.js].
+- Runner background start: `health_port:` [chunk-7fcvmady.js].
+- Runner setup and doctor: `[self-hosted-runner:setup] spawning:`
+  [chunk-mbgcnqpq.js], `[self-hosted-runner:doctor] spawning:`
+  [chunk-mfw3czbg.js].
+- Runner commit-signing shim: `self-hosted-runner code-sign`
+  [chunk-njm6b9hz.js].
+- plugin eval: `.eval-artifacts` [chunk-bv3ay8p2.js]; the spawns use
+  process.execPath with process.argv[1] and --append-system-prompt.
+
+The runner and plugin eval chunks import the wrapper module only for
+its side effects (a bare import added by the bundler) and never call
+it. There are 61 references to process.execPath in the bundle.
+
+
+Upstream
+--------
+
+From the public changelog (anthropics/claude-code) and npm dates:
+
+  ~2.1.210             claude-code moves from cli.js to Bun executables
+                       (per the 275119 commit message)
+  2.1.208  2026-07-13  CLAUDE_CODE_PROCESS_WRAPPER added ("running every
+                       Claude Code self-spawn through a required
+                       wrapper"); 2.1.210 extends it to Remote Control
+                       and agent-team panes
+  2.1.224  2026-08-07  claude self-hosted-runner added
+  2.1.269  2026-09-11  claude plugin eval added
+
+Neither tool is a leftover from before the wrapper or before Bun.
+Anthropic's corporate-launcher page
+(https://code.claude.com/docs/en/corporate-launcher.md) says the wrapper
+"starts every process Claude Code launches from its own binary through
+your launcher" and lists both what it covers and the exceptions. Every
+exception is a process something else starts (launchd or systemd, the
+user, the OS deep-link handler, tmux, the browser). The runner and
+plugin eval are on neither list, so they look like gaps rather than
+design. The runner does have its own documented mechanism, --exec-path
+or a `command` hook, but nothing explains why it ignores the wrapper:
+https://code.claude.com/docs/en/self-hosted-environments-configuration.md
+
+No GitHub issue about either was found. The only open wrapper issue,
+#81072, is about the processWrapper setting not being read from
+--settings files. The runner is changing quickly (17 changelog entries
+in August 2026, 19 in September); plugin eval has 2 so far.
+
+On Anthropic's own builds the .env/bunfig.toml part is harmless, so it
+will not be fixed for its own sake. The wrapper bypass is a real
+inconsistency for corporate-launcher users, though, and could be
+reported. If Anthropic routes the two tools through the common helper,
+the port's launcher covers them with no change to the port.
+
+
+Options
+-------
+
+0. Upstream fix. Report that the runner and plugin eval bypass
+   CLAUDE_CODE_PROCESS_WRAPPER, contrary to the corporate-launcher page.
+   If fixed, the .env/bunfig.toml gap closes by itself; the runner's
+   CLAUDE_RUNNER_CLAUDE_BIN assumption remains.
+   To do: file the issue; after each release, check the strings above.
+
+1a. Patched Bun, run as now. Patch Bun's sources so that the runtime
+   does not load .env and bunfig.toml by default, build it, and install
+   it privately (e.g. as a lang/bun flavor with its own path, since a
+   flavor installing bin/bun would conflict with the normal one and
+   change bun for every other user). Every self-spawn runs that bun, so
+   the gap closes; the runner's assumption does not.
+   To do: find where the Bun 1.4 runtime loads both files and patch
+   that; create a from-source Bun 1.4 port. That is the expensive part:
+   the in-tree source port is broken at 1.3.14, and 1.4 builds with
+   Cargo instead of Zig and still needs oven-sh's prebuilt WebKit. The
+   patch has to be maintained for every Bun release.
+
+1b. Patched Bun, embedded. As 1a, then build a standalone claude
+   executable from it, which is what Anthropic does. Fixes both
+   problems, and allows other patches to Bun (native Bun.ant instead of
+   shims, the argv[0] dispatch behind the grep/find shims). Costs as 1a
+   plus those of 2.
+
+2. Stock Bun, embedded. At build time run bun build --compile with
+   --no-compile-autoload-dotenv and --no-compile-autoload-bunfig. The
+   result behaves like Anthropic's executable: process.execPath is
+   claude, Bun.isStandaloneExecutable is true, every copy has the
+   setting compiled in. Fixes both problems. The package grows from
+   about 48 MiB to about 135 MiB (it embeds bun, about 87 MiB; total
+   disk use stays about the same, as lang/bun is then only a build
+   dependency), becomes architecture-specific, and needs a rebuild for
+   every Bun update.
+   Prototype needed, to check: that stock Bun can reproduce the
+   /$bunfs/root layout (every chunk at its own path; the absolute
+   /$bunfs/root imports between chunks left alone; .md, .txt, .mjs,
+   .zst, .asset and .woff2 files embedded as files; the hooks worker as
+   an extra entry point) without the path rewrite; whether the text
+   assets then need the Bun.plugin in bun-ant-freebsd.cjs at all; and
+   what standalone mode changes in claude: install-type detection and
+   the updater (the ~/.local/share/claude versions logic), the embedded
+   ripgrep path (USE_BUILTIN_RIPGREP=false must still apply), the
+   grep/find gate, Claude in Chrome.
+
+3. Patch process.execPath. bun-ant-freebsd.cjs sets process.execPath to
+   a launcher that behaves like a claude executable: it runs
+   `bun --no-env-file --config=/dev/null <cli> "$@"`, dropping a leading
+   <cli> argument (the non-standalone call sites pass it; the runner's
+   CLAUDE_RUNNER_CLAUDE_BIN users and the signing shim do not).
+   CLAUDE_CODE_PROCESS_WRAPPER would then be dropped: claude refuses a
+   wrapper equal to its own process.execPath. Fixes both problems with
+   no Bun build and no re-bundling.
+   Prototype needed, to check: the 61 process.execPath references
+   (comparisons such as the launcher sanity check, stat and realpath
+   identity checks in the daemon, lock files, deep-link and Chrome
+   native-host registration, telemetry); then, with the hostile .env
+   and bunfig.toml: the TUI, a background session, the daemon and its
+   workers, a teammate, --resume, the runner's sessions, a wrapper
+   following the runner's documented contract, --configure-git signing,
+   and plugin eval.
+
+4. Replace the system bun with a script adding the two options. Does not
+   work: process.execPath would still be the real binary, which claude's
+   copies would then run directly. It would also stop every Bun project
+   on the machine from reading its own .env and bunfig.toml.
+
+5. Patch the call sites. Rewrite the runner's and plugin eval's spawns
+   in post-extract to use the common helper, like the grep/find gate is
+   patched now. Closes the gap for those spawns but not the runner's
+   assumption, and depends on matching minified code that changes every
+   release, so each pattern needs a must-match-once check like the gate.
+
+
+Suggested order
+---------------
+
+Keep the current state and the pkg-message warning, report the wrapper
+bypass upstream (option 0), and check each release for whether the
+runner and plugin eval start using the common helper. If the gap has to
+be closed first, prototype option 3; choose option 2 if closer parity
+with Anthropic's executable becomes worth a larger package.

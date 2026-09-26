@@ -1,0 +1,228 @@
+misc/claude-code: run the extracted bundle on FreeBSD's own Bun
+==============================================================
+
+Builds on attachment 275119 (bug 298047) and runs the JavaScript it
+extracts from the Linux executable on stock Bun instead of node. The
+runtime is lang/bun 1.4.2, switched to the official FreeBSD release
+binaries (see the notes for lang/bun).
+
+Base: misc/claude-code as in ports main at
+4cf50cca02954c2eda98bd741c4b0c827744cf18 (2.1.268), with 275119 applied
+unchanged. This changes only what the switch to Bun requires, plus the
+fixes listed further down.
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay (misc/claude-code,
+lang/bun)
+
+
+Why Bun
+-------
+
+The bundle is built for Bun. Stock Bun already has every Bun API it uses
+except Anthropic's private Bun.ant ones, including those node cannot
+provide (Bun.Image, Bun.Terminal, Bun.WebView, Bun.SQL, Bun.JSONL), and
+bun:ffi makes it possible to implement the missing FreeBSD pieces. The
+1,125-line polyfill, the npm dependencies and the import.meta rewrites
+all go away.
+
+
+Changes relative to 275119
+--------------------------
+
+- USES=nodejs:run npm:npm,build dropped; RUN_DEPENDS and BUILD_DEPENDS
+  on lang/bun (the build dependency is for the API check below).
+  ONLY_FOR_ARCHS=aarch64 amd64, following lang/bun.
+
+- Removed: files/bun-polyfill.cjs, files/packagejsons/, the node_modules
+  install and the {"type":"module"} package.json (Bun behaves the same
+  without it), and the import.meta.require / import.meta.dir rewrites in
+  scripts/post-extract, which are Bun's own.
+
+- New files/bun-ant-freebsd.cjs, installed beside cli. post-extract makes
+  the bundle's entry points import it first: cli and the hooks worker
+  (src/plugins/functionHooks/hooks-worker/hooks-worker.js). It has to be
+  the entry points rather than bun --preload: claude starts further
+  copies of itself as `bun cli ...`, which would not inherit a preload,
+  and a Worker starts with globals of its own. It provides:
+
+  - Text assets. The bundle loads its uncompressed skills and docs, and
+    two .mjs skill templates, with import.meta.require and uses the
+    result as a string. Inside Anthropic's executable that returns the
+    file's contents. Stock Bun instead renders a .md to HTML inside a
+    module object, returns a .txt as a module namespace and runs a .mjs.
+    Every bundled skill then fails with "TypeError: No default value"
+    when invoked. A Bun.plugin() onLoad hook returns the plain text for
+    the content-hashed assets beside cli.
+  - Bun.ant.CellSegmenter: clawgod's bun-ant-shim.cjs, as in 275119
+    (same pinned commit and licence settings).
+  - Bun.ant.getPeerUid / getPeerPid, through getsockopt(LOCAL_PEERCRED)
+    and struct xucred via bun:ffi. The daemon uses getPeerUid to reject
+    control connections from other users; without it that check is
+    skipped, i.e. fails open (as with 275119, which only has the
+    clawgod shim). Clients use getPeerPid to verify the endpoint they
+    connected to.
+  - Bun.ant.setDumpable, through procctl(PROC_TRACE_CTL,
+    PROC_TRACE_CTL_DISABLE): like Linux's PR_SET_DUMPABLE it is
+    inherited on fork and reset on execve, so commands run by claude
+    stay debuggable. Claude only calls it in the remote-session agent
+    proxy.
+  - Not provided, on purpose: Bun.ant.memoryPressureLevel (only called
+    on macOS), Bun.FetchSession (feature-detected, falls back to
+    fetch()), Bun.unsafe.setJITPolicy (called with ?.()).
+
+- New files/check-bun-api.js, run in post-install against the staged
+  tree: it lists every Bun.* API the bundle references and fails the
+  build if stock Bun plus bun-ant-freebsd.cjs lacks one that is not on
+  the known-absent list. Otherwise a missing API can fail silently; for
+  example, without CellSegmenter the TUI just stays blank. It caught
+  Bun.FetchSession, new in 2.1.283.
+
+- files/claude.in runs `bun --no-env-file --config=/dev/null cli`.
+  Plain bun loads .env files and bunfig.toml from the current directory,
+  i.e. the user's project: a bunfig.toml with preload = [...] in a cloned
+  repository runs its code inside claude before the trust dialog, and a
+  .env can set ANTHROPIC_BASE_URL or ANTHROPIC_API_KEY. Both behaviours
+  verified with test files.
+
+  This is new with running the bundle on plain bun; it does not happen
+  with Anthropic's executable or with node. Stock Bun's standalone
+  executables load both files by default, but Anthropic's is built with
+  that turned off: in a directory with such a .env and bunfig.toml, the
+  Linux claude 2.1.283 neither runs the preload nor picks up
+  ANTHROPIC_BASE_URL, while the same probe with the variables in the
+  environment reaches the test listener. The setting is compiled into
+  that executable, and its copies of itself are the same executable, so
+  they are covered too. On plain bun the equivalent is two command line
+  options, which the copies claude starts as `bun cli ...` do not get,
+  hence the launcher below. node loads neither file unless told to, so
+  275119 is not affected.
+
+- New libexec/claude-code/bun-launcher, which bin/claude puts in
+  CLAUDE_CODE_PROCESS_WRAPPER unless the user has set it already. That
+  is Claude's own hook for the copies of itself it starts: background
+  sessions, the daemon and its workers, teammates, --resume relaunches,
+  remote-control sessions, the tool host, scheduled tasks, `plugin test`
+  and shell completion. They come as `bun cli ...`, and the launcher
+  adds the same two options, so they don't read .env and bunfig.toml
+  from their working directory either (verified with a hostile
+  bunfig.toml: its preload runs without the launcher and not with it).
+
+- New pkg-message (files/pkg-message.in), shown on install: it names
+  the two commands whose child processes still read .env and bunfig.toml
+  (see Open issues) and the runner workaround. It is an install message
+  only; the maintainers may want an upgrade entry for users coming from
+  the Linux-binary port.
+
+- pkg-descr no longer says claude is a Linux binary run through the
+  Linuxulator (also stale after 275119).
+
+- Updated to 2.1.283; pkg-plist gains its two new .woff2.asset files.
+
+
+Fixes that also apply to 275119
+-------------------------------
+
+- The /$bunfs/root/ -> ./ rewrite breaks function hooks. The hooks
+  worker lives three directories below the chunks it imports, and fails
+  with "Cannot find module './chunk-3g3ymar6.js'". HOOKS_WORKER_URL is
+  also passed to new URL(`file://${path}`), which needs an absolute
+  path. post-extract now rewrites /$bunfs/root/ to the absolute install
+  directory (APPDIR), which is what the bundle's paths mean in the first
+  place. Side effect: the staged tree cannot be run from another
+  location without rewriting it again. Under node this is necessary but
+  not enough: node has no global Worker, which the hooks worker is
+  started with, so function hooks still cannot work there.
+
+- Built-in plugins written as hooks modules (agents-md, telemetry,
+  responsive mode, the diff panel, the security default and others) did
+  not load: "agents-md: hooks module did not load: .../hooks/register.ts:
+  no such file" and "telemetry: hooks module did not load: telemetry:
+  not readable (ENOENT)" at startup. The helper that declares them takes
+  the bundled module only when Bun.isStandaloneExecutable is true, and
+  otherwise the TypeScript sources of Anthropic's own tree, which the
+  release does not have. One visible effect: AGENTS.md files were never
+  loaded as project instructions. post-extract now makes the helper
+  always take the bundled module (matched by shape, must match exactly
+  once). Verified: both modules load, and a project with only an
+  AGENTS.md gets "no CLAUDE.md found; AGENTS.md loaded" in the debug log.
+  node is not a standalone executable either, so 275119 has the same
+  problem.
+
+- USE_CURL_USER_AGENT took the version from ${LOCALBASE}/bin/curl, which
+  a clean build environment doesn't have, so the User-Agent came out as
+  "curl/". Added USE_CURL_USER_AGENT_BUILD_DEPENDS=curl:ftp/curl; it is
+  now "curl/8.21.0".
+
+- Probably also in 275119, not verified under node: the two .mjs skill
+  templates (runner-scaffold, build-report-lite). __bunRequire only
+  falls back to reading the file when require() throws, and node can
+  require() an ES module, so they would be loaded, and run, as modules
+  rather than returned as text.
+
+
+Tested
+------
+
+amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283:
+
+- poudriere testport passes: stage-qa, check-plist, install and
+  deinstall (licence checks not run: the build set has
+  DISABLE_LICENSES);
+- the TUI starts (welcome screen, theme picker, highlighted diff);
+- bundled skill prompts and reference files load as text, the .mjs
+  templates are not executed;
+- the hooks worker loads, with the text assets and Bun.ant available
+  inside it;
+- getPeerUid / getPeerPid on Bun's Unix sockets, from both ends, with
+  the client as root and as nobody;
+- setDumpable: `proccontrol -m trace -q` shows tracing disabled, and
+  enabled again in children after exec;
+- .env and bunfig.toml in the working directory are ignored by claude
+  and by the copies it starts through the launcher;
+- `ps -o emul` shows FreeBSD ELF64: no Linuxulator involved.
+
+
+Open issues and not tested
+--------------------------
+
+- Not yet tested with a real login and sustained use: API requests,
+  tools, MCP servers, hooks, sub-agents, long sessions.
+- aarch64 is untested. The struct xucred offsets used were checked at
+  compile time for aarch64 and are the same as on amd64.
+- `claude self-hosted-runner` (its sessions, its background start, and
+  its setup and doctor subcommands) and `claude plugin eval` start
+  copies of claude from process.execPath directly, bypassing
+  CLAUDE_CODE_PROCESS_WRAPPER, so those copies still read .env and
+  bunfig.toml from their working directory. For the runner that is
+  inside the repositories it checks out for remotely assigned sessions.
+  pkg-message warns about this. For the runner, --exec-path
+  PREFIX/bin/claude should route its sessions through bin/claude (not
+  tested). Both commands are recent (2.1.224 and 2.1.269) and aimed at
+  few users; Anthropic's corporate-launcher documentation lists neither
+  among the processes the wrapper covers or the known exceptions.
+- The runner also assumes that process.execPath is the claude
+  executable: it passes it to sessions as CLAUDE_RUNNER_CLAUDE_BIN, which
+  its documented wrapper scripts and `command` hooks exec, and its
+  --configure-git signing shim runs it as `self-hosted-runner code-sign`.
+  Here it is bun, so both would run bun with claude's arguments. Found in
+  the code, not tested; 275119 is affected the same way (node).
+- The problem, the checks, the options for fixing both points properly,
+  and what each would need, are in notes/misc-claude-code-autoload.txt.
+- A CLAUDE_CODE_PROCESS_WRAPPER set by the user takes precedence over
+  the port's launcher and has to add the bun options itself.
+- Not available, as with 275119: clipboard and voice (the native addons
+  are Linux-only and excluded), Claude's own sandboxing (Linux and macOS
+  only), and the grep/find argv[0] shims (disabled, so the Grep and Glob
+  tools use ripgrep).
+- Harmless: the debug log shows "[ERROR] Failed to read /proc/version for
+  WSL detection" (FreeBSD has no /proc/version).
+- Claude in Chrome cannot work outside Anthropic's executable: it starts
+  `<execPath> --claude-in-chrome-mcp` without the path to cli, which
+  both bun and node reject.
+- Version skew: the bundle is built against Anthropic's Bun (1.4.3 plus
+  private APIs) and runs here on upstream 1.4.2. check-bun-api.js
+  catches missing APIs, not behavioural differences. clawgod's
+  CellSegmenter tracks a reverse-engineered contract; if the renderer
+  goes blank after an update, check for a newer clawgod commit.
+- USE_CURL_USER_AGENT stays on by default, as inherited from
+  misc/claude-code-legacy; whether it should is the maintainers' call.

@@ -1,0 +1,213 @@
+Keeping misc/claude-code and lang/bun up to date
+===============================================
+
+Status as of 2026-09-26. A plan, nothing here is implemented yet.
+
+Until now Claude Code on this machine was updated by /root/update-claude.sh,
+which installs Anthropic's Linux binary with npm. The port replaces that:
+every Claude Code release becomes a port update and a package build, and
+Anthropic's own auto-updater stays off (bin/claude sets
+DISABLE_AUTOUPDATER=1), since it would install the Linux build. This plan
+covers what an update involves, what to watch, and three levels of
+automation.
+
+
+How often things change
+-----------------------
+
+- Claude Code: 40 releases between 2026-08-18 and 2026-09-25, about one
+  a day, on the `latest` channel. There is also a `stable` channel
+  (https://downloads.claude.ai/claude-code-releases/stable, npm dist-tag
+  stable): 2.1.274 of 2026-09-16, against `latest` 2.1.283 of 2026-09-25.
+- Bun with FreeBSD builds: 1.3.14 (2026-05-13), 1.4.0 (08-20), 1.4.1
+  (09-04), 1.4.2 (09-05).
+- clawgod's bun-ant-shim.cjs: changed twice (2026-09-17, 09-18). The
+  pinned commit (f9d2dcde, 09-25) includes both.
+- The in-tree ports: misc/claude-code was updated every few days until
+  2.1.268; bug 298047 (275119) is pending.
+
+
+A Claude Code update, step by step
+----------------------------------
+
+1. New version: `make find-new-version` (the maintainer's target, kept in
+   the Makefile) fetches downloads.claude.ai/claude-code-releases/latest
+   and rewrites DISTVERSION. For the stable channel, fetch
+   .../claude-code-releases/stable instead. Remove any PORTREVISION.
+2. `make makesum`: fetches the npm tarball (about 108 MB) into DISTDIR
+   and rewrites distinfo.
+3. `poudriere testport -j 15rel1 -p feather -z crayon2 -O overlay
+   -O privoverlay misc/claude-code`. Use testport (or bulk -t), not a
+   plain bulk: only testport runs stage-qa and check-plist, and
+   check-plist is what catches upstream adding or dropping a file with a
+   stable name. Verified: with the two .woff2.asset files that 2.1.283
+   added missing from pkg-plist, testport fails with "Error: Orphaned:
+   ...", while a plain bulk would package without them. The build
+   itself stops on:
+   - post-extract: the grep/find gate or the built-in hooks module
+     helper not matching exactly once; an entry point not starting with
+     the // @bun pragma;
+   - check-bun-api.js: a Bun API the bundle uses that stock Bun and
+     bun-ant-freebsd.cjs lack (caught Bun.FetchSession in 2.1.283).
+4. Smoke test the package (see below): does the TUI still render?
+5. Commit Makefile and distinfo (and pkg-plist, if it changed), build
+   into the local repository with the usual bulk, then
+   `pkg upgrade claude-code`. Running sessions keep their version; new
+   ones get the update.
+
+What to do when a step fails:
+
+  failure                          likely cause, action
+  -------------------------------  -----------------------------------------
+  post-extract: gate               Upstream changed the shell-search gate.
+                                   Check whether bash's grep/find still get
+                                   argv[0] shims; adjust the pattern.
+  post-extract: hooks module       Upstream changed how built-in plugins get
+  helper                           their hooks module; check that they still
+                                   load (debug log: "hooks module ...@builtin
+                                   loaded") and adjust the pattern.
+  post-extract: pragma             Upstream changed the entry points; find
+                                   where the import of bun-ant-freebsd.cjs
+                                   has to go.
+  check-bun-api.js                 New Bun API. If the bundle feature-detects
+                                   it, add it to the known-absent list with a
+                                   reason; otherwise implement it in
+                                   bun-ant-freebsd.cjs or wait for a Bun
+                                   release that has it.
+  check-plist: orphaned/missing    Add or remove the stable-named file in
+                                   pkg-plist; if it is a new kind of
+                                   content-hashed file, add a pattern to
+                                   post-install instead.
+  smoke test: blank TUI            Bun.ant.CellSegmenter contract changed:
+                                   look for a newer clawgod commit touching
+                                   src/shared/bun-ant-shim.cjs, move
+                                   CLAWGOD_COMMIT, makesum.
+  smoke test: startup error        Read the error; usually a new Bun API
+                                   check-bun-api cannot see, or a path the
+                                   /$bunfs/root rewrite does not cover.
+
+Also check each release (a grep, see notes/misc-claude-code-autoload.txt,
+"Where to find the code") whether self-hosted-runner and plugin eval have
+started using the common self-spawn helper. Once they do, the pkg-message
+warning can go.
+
+
+Smoke test
+----------
+
+The package cannot run from a temporary directory as it is: the bundle's
+imports point at the install path. The test used during development:
+
+1. Extract claude-code-<version>.pkg and bun-<version>.pkg into a
+   temporary directory T.
+2. Rewrite /usr/local/lib/node_modules/@anthropic-ai/claude-code to
+   T/usr/local/lib/node_modules/@anthropic-ai/claude-code in cli and the
+   .js files, and the bun and libexec paths in bin/claude and the
+   launcher.
+3. With a throwaway HOME and TERM=xterm-256color, run
+   `script -q log timeout -s KILL 12 T/usr/local/bin/claude` (timeout
+   inside script, or the log is lost) and look for "Welcome to Claude
+   Code" in the log.
+
+Alternatively run the same TUI check after `pkg upgrade`, against the
+installed claude, and roll back if it fails: the set has
+KEEP_OLD_PACKAGES=yes, so the previous package is still available.
+
+
+A Bun update
+------------
+
+1. Watch https://github.com/oven-sh/bun/releases for a bun-v* release
+   with bun-freebsd-* assets.
+2. Bump DISTVERSION in lang/bun, `make makesum` (it fetches the aarch64
+   and amd64 archives, through the `.if make(makesum)` in the Makefile),
+   `poudriere testport ... lang/bun`. Check the checksums against the
+   release's SHASUMS256.txt.
+3. Rebuild and test misc/claude-code against it: its build runs
+   check-bun-api.js against the new bun, and the smoke test checks the
+   renderer. Poudriere should rebuild claude-code on its own, because
+   the dependency's version changed; check that it does.
+4. Check whether an API on the known-absent list (FetchSession,
+   unsafe.setJITPolicy, ant.memoryPressureLevel) is now provided, and
+   drop it from the list if so.
+
+
+Other things to watch
+---------------------
+
+- clawgod: commits touching src/shared/bun-ant-shim.cjs
+  (https://api.github.com/repos/0Chencc/clawgod/commits?path=src/shared/bun-ant-shim.cjs).
+  Review the diff of that one file before moving the pin.
+- Ports main: misc/claude-code, lang/bun, archivers/unhare, and bug
+  298047. Once the maintainers commit their own Bun-based version, drop
+  or rebase the overlay copies. The feather tree is a fixed checkout, so
+  as long as local builds use it, the overlay copies remain the way to
+  get newer versions.
+- Distfiles: every Claude Code release leaves a 108 MB tarball in
+  /usr/ports/distfiles. poudriere distclean compares against ports trees
+  given with -p; try `poudriere distclean -n -a -p feather -p overlay
+  -p privoverlay` (dry run) to see whether it handles the overlays,
+  otherwise delete old claude-code-linux-x64-*.tgz by name.
+
+
+Automation
+----------
+
+Constraints:
+
+- The `overlay` ports tree is the working tree in /home/g (owned by g).
+  Automation must not edit it while there is work in progress there,
+  and git run as root in it needs `su g -c` (or -c safe.directory=).
+- Publish only from that tree. If the repository got a claude-code built
+  from any other copy of the port, the next normal bulk from the working
+  tree, with its older DISTVERSION, would replace it with the older
+  version.
+- testport does not publish anything, so testing can run from anywhere.
+- Poudriere needs root and runs natively (not under the Linuxulator).
+
+Level 1: one command, run by hand. A script (for example
+tools/update-claude-code.sh in the overlay) that does steps 1 to 4 and
+stops at the first failure with the log path, then prints the diff and
+the two commands that publish (commit, bulk). Sketch, not tested:
+
+    #!/bin/sh
+    # update-claude-code.sh [version]
+    set -eu
+    O=/usr/home/g/work-freebsd/freebsd-ports-overlay
+    P=$O/misc/claude-code
+    export PORTSDIR=/usr/local/poudriere/ports/feather
+    export DISTDIR=/usr/ports/distfiles
+    su g -c "git -C $O diff --quiet -- misc/claude-code" ||
+        { echo "misc/claude-code has local changes" >&2; exit 1; }
+    old=$(make -C $P -V DISTVERSION)
+    new=${1:-$(fetch -qo - \
+        https://downloads.claude.ai/claude-code-releases/${CHANNEL:-latest})}
+    [ "$new" != "$old" ] || { echo "up to date ($old)"; exit 0; }
+    sed -i '' -e "s/^DISTVERSION=.*/DISTVERSION=	$new/" \
+        -e '/^PORTREVISION=/d' $P/Makefile
+    make -C $P makesum
+    chown g:g $P/Makefile $P/distinfo
+    poudriere testport -j 15rel1 -p feather -z crayon2 \
+        -O overlay -O privoverlay misc/claude-code
+    # smoke test (see above)
+    su g -c "git -C $O diff --stat -- misc/claude-code"
+    echo "publish: commit, then bulk -f plasma6-claude-pkglist"
+
+Level 2: scheduled checks. A daily cron job (as root, output mailed)
+that checks the Claude Code channel, Bun releases, clawgod's shim and
+ports main, and for a new Claude Code or Bun version runs Level 1 in a
+separate copy of the overlay (a git worktree registered as its own
+poudriere ports tree, so the working tree is untouched). It reports the
+result; publishing stays manual.
+
+Level 3: automatic publishing. When all checks pass and the working tree
+has no changes under misc/claude-code, commit the update there (on the
+branch that is checked out, without pushing), run the bulk, and
+optionally `pkg upgrade -y claude-code` followed by the installed-package
+smoke test, with rollback to the previous package on failure. Pushing to
+GitHub and proposing updates upstream stay manual.
+
+Suggested start: Level 1 now, as the replacement for update-claude.sh;
+Level 2 once the script has handled a few releases. Level 3 only if daily
+manual publishing becomes a burden, and preferably with the stable
+channel, which changes less often.

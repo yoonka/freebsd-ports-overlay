@@ -1,0 +1,90 @@
+lang/bun: update to 1.4.2, install the official FreeBSD release binaries
+=======================================================================
+
+Base: lang/bun as in ports main at 076733902c86aff6a7e8ef2375fda8bd5db82b0a
+(1.3.14_5, BROKEN "Checksum error", amd64 only).
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay (lang/bun)
+
+
+Why
+---
+
+The Bun project has published official FreeBSD builds with every release
+since 1.3.14: amd64, amd64-baseline and aarch64, each also as a -profile
+build with symbols. Building from source, as the port does now, needs the
+oven-sh Zig toolchain, a prebuilt WebKit, Node.js headers, a bootstrap
+binary from LOCAL/yuri, three tarballs generated at fetch time, LLVM 21
+and about 30 patches, and it is broken at 1.3.14. Bun 1.4 has moved its
+build from Zig to Cargo (the 1.4.2 tree has Cargo.toml and no build.zig),
+so a from-source 1.4 port would be close to a new port. Installing the
+release binaries unblocks the port now; a from-source build can follow
+later if it is wanted.
+
+misc/claude-code can then run on it natively (see the notes for
+misc/claude-code).
+
+
+Changes
+-------
+
+- DISTVERSION 1.4.2, fetched from
+  https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/. The
+  checksums in distinfo match upstream's SHASUMS256.txt.
+- amd64 installs bun-freebsd-x64-baseline.zip, which runs on any x86-64
+  CPU. In 1.4.2 its binary is byte-identical to bun-freebsd-x64.zip's, so
+  there is no option to choose between them for now.
+- aarch64 added (bun-freebsd-aarch64.zip).
+- distinfo lists both archives; only the one for ${ARCH} is fetched. This
+  uses the same `.if make(makesum)` construct as Mk/Uses/linux.mk.
+- NO_BUILD, USES=zip, and STRIP= so that the binary is installed as
+  released.
+- Installs bin/bunx as a symlink to bun. bun acts as bunx when started
+  under that name, as the npm package's bunx does.
+- CONFLICTS_INSTALL=bun-linux (lang/bun-linux already declares
+  CONFLICTS_INSTALL=bun).
+- A small do-test: bun --revision, and a bun:ffi call into libc.
+- Removed everything that belonged to the source build: files/ (patches,
+  package-lock files), the do-fetch/post-extract/post-patch/do-build
+  targets, and the build and fetch dependencies.
+- MAINTAINER, COMMENT, WWW, LICENSE and pkg-descr unchanged.
+
+
+The binary
+----------
+
+- NT_FREEBSD_ABI_TAG 1403000 (built on 14.3), symbol versions up to
+  FBSD_1.7, so it runs on every supported release.
+- Links only against base libraries: libc, libthr, libm, libc++,
+  libcxxrt.
+
+
+Tested
+------
+
+amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8:
+
+- poudriere testport passes: stage-qa, check-plist, install and
+  deinstall (licence checks not run: the build set has
+  DISABLE_LICENSES);
+- bun --revision prints 1.4.2+744846f84;
+- bun:ffi (dlopen of libc.so.7, getsockopt, procctl), node:net Unix
+  sockets, Workers and Bun.plugin() work;
+- misc/claude-code runs on it.
+
+
+Open issues and not tested
+--------------------------
+
+- aarch64 is untested.
+- LICENSE is still LGPL20, as before. Bun's own code is MIT and it links
+  JavaScriptCore, which is LGPL-2. The release archives contain no
+  licence file; LICENSE.md from the release tag could be added as a
+  LICENSE_FILE.
+- pkg-descr still lists "Zig, C++, and Rust" from the 1.3 days.
+- Possible additions: a PROFILE option installing the -profile builds
+  (with symbols, for debugging), and a find-new-version target like the
+  one in lang/bun-linux.
+- If the non-baseline and baseline amd64 builds diverge in a later
+  release, an option (or CPUTYPE-based choice) for bun-freebsd-x64.zip
+  may be worth adding.
