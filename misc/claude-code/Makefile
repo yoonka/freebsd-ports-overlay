@@ -59,6 +59,8 @@ NO_ARCH=	yes
 OPTIONS_DEFINE=		USE_CURL_USER_AGENT
 OPTIONS_DEFAULT=	USE_CURL_USER_AGENT
 USE_CURL_USER_AGENT_DESC=	Use curl User-Agent for web fetching to bypass bot-blocking filters (e.g. Anubis)
+# post-install takes the version for the User-Agent from the curl it finds
+USE_CURL_USER_AGENT_BUILD_DEPENDS=	curl:ftp/curl
 
 PACKAGE_NAME=		@anthropic-ai/claude-code
 
