@@ -15,14 +15,9 @@ const dir = process.argv[2];
 require(path.join(dir, 'bun-ant-freebsd.cjs'));
 
 // Absent on purpose. The bundle calls setJITPolicy through ?.(), and asks
-// for the memory pressure level on macOS only. It also catches failures of
-// the peer credential and dumpable calls, and then goes without the checks
-// they back.
+// for the memory pressure level on macOS only.
 const absent = new Set([
-	'ant.getPeerPid',
-	'ant.getPeerUid',
 	'ant.memoryPressureLevel',
-	'ant.setDumpable',
 	'unsafe.setJITPolicy',
 ]);
 
