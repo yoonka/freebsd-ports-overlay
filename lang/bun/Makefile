@@ -1,5 +1,5 @@
 PORTNAME=	bun
-DISTVERSION=	1.4.2
+DISTVERSION=	1.4.3
 CATEGORIES=	lang
 MASTER_SITES=	https://github.com/oven-sh/bun/releases/download/bun-v${DISTVERSION}/
 DIST_SUBDIR=	${PORTNAME}-${DISTVERSION}
@@ -22,7 +22,7 @@ STRIP=		# installed as released
 CONFLICTS_INSTALL=	bun-linux
 
 # The official FreeBSD release builds. For amd64 the baseline build is used,
-# which runs on any x86-64 CPU; as of 1.4.2 it is the same binary as the
+# which runs on any x86-64 CPU; as of 1.4.3 it is the same binary as the
 # non-baseline bun-freebsd-x64.zip anyway.
 DISTFILES_aarch64=	bun-freebsd-aarch64.zip
 DISTFILES_amd64=	bun-freebsd-x64-baseline.zip
