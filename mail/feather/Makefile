@@ -1,6 +1,6 @@
 PORTNAME=	feather
 DISTVERSIONPREFIX=	v
-DISTVERSION=	1.0.105
+DISTVERSION=	1.0.106
 CATEGORIES=	mail
 
 MAINTAINER=	nguthiruedwin@gmail.com
@@ -58,9 +58,12 @@ FEATHER_LOGDIR?=	/var/log/feather
 
 # Fully offline build environment for Mix. HOME/MIX_HOME/HEX_HOME point at the
 # per-build cache restored from the prefetched deps archive; MIX_ENV=prod so we
-# assemble the production release.
+# assemble the production release. FEATHER_VERSION is how upstream's release
+# CI stamps the tag into the release; without it mix.exs falls back to the
+# VERSION file, which upstream does not bump (it reads 1.0.102 at v1.0.106).
 _MIX_HOME=	${WRKDIR}/.mix
 MIX_ENV=	MIX_ENV=prod \
+		FEATHER_VERSION=${DISTVERSION} \
 		HOME=${WRKDIR} \
 		MIX_HOME=${_MIX_HOME} \
 		HEX_HOME=${_MIX_HOME} \
