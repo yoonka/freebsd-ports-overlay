@@ -102,6 +102,11 @@ _USES_fetch+=	810:zitadel-fetch-go-tools \
 # Build Go tools during fetch (has network) so all transitive
 # dependencies are cached in GOPATH for offline use during build.
 # Idempotent: skips if buf-cache already exists (re-runs in jail are no-ops).
+# The buf cache is filled from the same pinned buf.lock the build uses
+# (files/patch-proto-buf.lock); "buf dep update" would cache whatever the
+# BSR resolves today, and the offline build would then miss the pinned
+# commits. Poudriere does not keep buf-cache (it is not in distinfo), so
+# this runs on every build.
 zitadel-fetch-go-tools:
 	@if [ ! -d ${DISTDIR}/${DIST_SUBDIR}/buf-cache ]; then \
 		${ECHO_MSG} "===>  Fetching Go tool module dependencies"; \
@@ -126,11 +131,10 @@ zitadel-fetch-go-tools:
 		${TAR} -xf ${DISTDIR}/${DIST_SUBDIR}/${DISTNAME}${EXTRACT_SUFX} \
 			-C ${WRKDIR}/.buf-fetch-tmp; \
 		cd ${WRKDIR}/.buf-fetch-tmp/${PORTNAME}-${DISTVERSION} && \
-			${RM} -f proto/buf.lock && \
+			${PATCH} -s -p0 -i ${FILESDIR}/patch-proto-buf.lock && \
 			${SETENV} BUF_CACHE_DIR=${DISTDIR}/${DIST_SUBDIR}/buf-cache \
-			${WRKDIR}/.fetch-tools-bin/buf dep update proto && \
-			${SETENV} BUF_CACHE_DIR=${DISTDIR}/${DIST_SUBDIR}/buf-cache \
-			${WRKDIR}/.fetch-tools-bin/buf build proto; \
+			${WRKDIR}/.fetch-tools-bin/buf build proto -o /dev/null || \
+			exit 1; \
 		${RM} -r ${WRKDIR}/.buf-fetch-tmp ${WRKDIR}/.fetch-tools-bin; \
 	fi
 
