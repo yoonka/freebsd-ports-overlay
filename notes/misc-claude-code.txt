@@ -3,7 +3,7 @@ misc/claude-code: run the extracted bundle on FreeBSD's own Bun
 
 Builds on attachment 275119 (bug 298047) and runs the JavaScript it
 extracts from the Linux executable on stock Bun instead of node. The
-runtime is lang/bun 1.4.2, switched to the official FreeBSD release
+runtime is lang/bun 1.4.3, switched to the official FreeBSD release
 binaries (see the notes for lang/bun).
 
 Base: misc/claude-code as in ports main at
@@ -68,14 +68,17 @@ Changes relative to 275119
     proxy.
   - Not provided, on purpose: Bun.ant.memoryPressureLevel (only called
     on macOS), Bun.FetchSession (feature-detected, falls back to
-    fetch()), Bun.unsafe.setJITPolicy (called with ?.()).
+    fetch()), Bun.unsafe.setJITPolicy (called with ?.()),
+    Bun.ant.windowsSandboxDeniesArg (since 2.1.301; called on Windows
+    only, with ?.()).
 
 - New files/check-bun-api.js, run in post-install against the staged
   tree: it lists every Bun.* API the bundle references and fails the
   build if stock Bun plus bun-ant-freebsd.cjs lacks one that is not on
   the known-absent list. Otherwise a missing API can fail silently; for
   example, without CellSegmenter the TUI just stays blank. It caught
-  Bun.FetchSession, new in 2.1.283.
+  Bun.FetchSession, new in 2.1.283, and Bun.ant.windowsSandboxDeniesArg,
+  new in 2.1.301.
 
 - files/claude.in runs `bun --no-env-file --config=/dev/null cli`.
   Plain bun loads .env files and bunfig.toml from the current directory,
@@ -116,7 +119,9 @@ Changes relative to 275119
 - pkg-descr no longer says claude is a Linux binary run through the
   Linuxulator (also stale after 275119).
 
-- Updated to 2.1.283; pkg-plist gains its two new .woff2.asset files.
+- Updated to 2.1.301. pkg-plist gained the two .woff2.asset files that
+  2.1.283 added, and lost payload.template.html.asset, which 2.1.301 no
+  longer ships.
 
 
 Fixes that also apply to 275119
@@ -163,7 +168,8 @@ Fixes that also apply to 275119
 Tested
 ------
 
-amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283:
+amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283 on Bun
+1.4.2 (2.1.301 on Bun 1.4.3: testport and the TUI only):
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
@@ -220,7 +226,8 @@ Open issues and not tested
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
 - Version skew: the bundle is built against Anthropic's Bun (1.4.3 plus
-  private APIs) and runs here on upstream 1.4.2. check-bun-api.js
+  private APIs, as embedded in 2.1.301) and runs here on upstream 1.4.3,
+  so for now only the private APIs differ. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer
   goes blank after an update, check for a newer clawgod commit.

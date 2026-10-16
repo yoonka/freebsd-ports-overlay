@@ -15,11 +15,13 @@ const dir = process.argv[2];
 require(path.join(dir, 'bun-ant-freebsd.cjs'));
 
 // Absent on purpose. The bundle calls setJITPolicy through ?.(), falls back
-// to plain fetch() without FetchSession, and asks for the memory pressure
-// level on macOS only.
+// to plain fetch() without FetchSession, asks for the memory pressure level
+// on macOS only, and for the sandbox deny-entries helper (since 2.1.301) on
+// Windows only.
 const absent = new Set([
 	'FetchSession',
 	'ant.memoryPressureLevel',
+	'ant.windowsSandboxDeniesArg',
 	'unsafe.setJITPolicy',
 ]);
 
