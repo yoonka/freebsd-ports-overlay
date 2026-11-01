@@ -228,18 +228,25 @@ failure table. In short:
   `files/patch-pkg_server_server__rpc.go` make the per-session re-exec use
   `%%PREFIX%%/bin/livekit-ingress` / `livekit-egress`, which post-patch
   substitutes. Upstream runs `ingress` / `egress` from PATH.
-- egress has a CHROME option (default on amd64) for room-composite and
-  web egress: Chromium in Xvfb with a private PulseAudio started by the
-  rc script. With it, a fetch hook prefetches `template-default`'s pnpm
-  store from its lockfile (`--frozen-lockfile`, timestamps normalised),
-  and pre-build runs `vite build` into `cmd/server/templates`, as
-  upstream's Dockerfile does. Without it a placeholder fills the
-  `go:embed` directory, and the port must not depend on X11 servers,
-  Chromium, PulseAudio or node. Check both variants after an update:
-  testport with the option on, and `make -V RUN_DEPENDS -V BUILD_DEPENDS`
-  with it off. On an update, compare `pnpm-lock.yaml`, `_PNPM_VER`
-  against `packageManager`, and the patched files in `pkg/pipeline/source`
-  (Xvfb flags, Chrome path and features, pactl path).
+- egress has a CHROME option, **off by default**. Without it, room
+  composites use the built-in layouts rendered by GStreamer
+  (`enable_template_sdk: true`, which the sample config then sets), a
+  placeholder fills the `go:embed` template directory, and the port must
+  not depend on an X server, Chromium, PulseAudio or node; keep it that
+  way, since headless servers rely on it. With CHROME, web egress and
+  custom templates work through Chromium in Xvfb with a private
+  PulseAudio started by the rc script. In that case a fetch hook
+  prefetches `template-default`'s pnpm store from its lockfile
+  (`--frozen-lockfile`, timestamps normalised), and pre-build runs
+  `vite build` into `cmd/server/templates`, as upstream's Dockerfile
+  does.
+- egress updates: run makesum as `make makesum WITH=CHROME`, otherwise
+  the pnpm distfile drops out of distinfo. Testport both variants: the
+  default, and CHROME on (for example with a temporary
+  `OPTIONS_DEFAULT=CHROME` that you remove afterwards). Compare
+  `pnpm-lock.yaml`, `_PNPM_VER` against `packageManager`, and the patched
+  files in `pkg/pipeline/source` (Xvfb flags, Chrome path and features,
+  pactl path).
 - egress records audio from Chromium through PulseAudio, so www/chromium
   must be built with its PULSEAUDIO option.
 - The UIDs are livekit 590, livekit-egress 591 and livekit-ingress 592.

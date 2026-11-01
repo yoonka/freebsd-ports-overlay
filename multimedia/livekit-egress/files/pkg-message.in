@@ -47,10 +47,10 @@ EOM
 %%NO_CHROME_MSG%%  message: <<EOM
 %%NO_CHROME_MSG%%Built without the CHROME option, so there is no Chromium, Xvfb or
 %%NO_CHROME_MSG%%PulseAudio. Track, track composite and participant egress work; room
-%%NO_CHROME_MSG%%composite works only through the GStreamer compositor, i.e. audio-only
-%%NO_CHROME_MSG%%requests without a layout, or the built-in layouts with
-%%NO_CHROME_MSG%%enable_template_sdk: true in egress.yaml. Web egress and custom
-%%NO_CHROME_MSG%%templates are refused. Also set pulse_sink_reap_grace_sec: -1 there.
+%%NO_CHROME_MSG%%composite works through the GStreamer compositor with the built-in
+%%NO_CHROME_MSG%%layouts (enable_template_sdk: true, which egress.yaml.sample sets, as
+%%NO_CHROME_MSG%%well as pulse_sink_reap_grace_sec: -1). Web egress and custom
+%%NO_CHROME_MSG%%templates need the CHROME option.
 %%NO_CHROME_MSG%%EOM
 %%NO_CHROME_MSG%%}
 ]

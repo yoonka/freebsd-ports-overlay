@@ -34,8 +34,9 @@ logging:
 
 # Render room composites with the built-in layouts in GStreamer instead of
 # Chrome (custom_base_url requests still need Chrome). Needed for room
-# composite in builds without the CHROME option.
-# enable_template_sdk: false
+# composite in builds without the CHROME option (the default), so it is
+# set there.
+%%NO_CHROME_CFG%%enable_template_sdk: %%TEMPLATE_SDK%%
 
 # Room composite and web egress (CHROME option): Chrome runs without its
 # sandbox unless this is set; the FreeBSD chromium sandbox is untested here.
@@ -48,8 +49,9 @@ logging:
 #   force-device-scale-factor: 1
 # Unload PulseAudio sinks leaked by crashed handlers after this many
 # seconds (default 30, negative disables). Builds without the CHROME
-# option have no PulseAudio; set -1 there to skip the pactl calls.
-# pulse_sink_reap_grace_sec: 30
+# option have no PulseAudio, so it is set to -1 there to skip the pactl
+# calls.
+%%NO_CHROME_CFG%%pulse_sink_reap_grace_sec: %%REAP_GRACE%%
 
 # Admission control. FreeBSD has no cgroups; memory_source stays proc_rss.
 # cpu_cost:

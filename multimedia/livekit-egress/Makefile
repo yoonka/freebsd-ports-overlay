@@ -1,6 +1,7 @@
 PORTNAME=	livekit-egress
 DISTVERSIONPREFIX=	v
 DISTVERSION=	1.15.0
+PORTREVISION=	1
 CATEGORIES=	multimedia net
 
 MAINTAINER=	ports@FreeBSD.org
@@ -40,8 +41,12 @@ GO_TARGET=	./cmd/server:${PORTNAME}
 # Only the source tarball; go.mod and the pnpm tarball are used as-is.
 EXTRACT_ONLY=	${DISTNAME}${EXTRACT_SUFX}
 
+# CHROME is off by default: the built-in room composite layouts are then
+# rendered by GStreamer (enable_template_sdk, set in the sample config), and
+# the package needs no X server, Chromium, PulseAudio or node. CHROME adds
+# web egress and custom templates. Its pnpm distfile is in distinfo too, so
+# regenerate distinfo with `make makesum WITH=CHROME`.
 OPTIONS_DEFINE=	CHROME
-OPTIONS_DEFAULT_amd64=	CHROME
 OPTIONS_SUB=	yes
 CHROME_DESC=	Room composite and web egress through headless Chromium
 
@@ -54,8 +59,10 @@ CHROME_RUN_DEPENDS=	${LOCALBASE}/bin/chrome:www/chromium \
 			pulseaudio:audio/pulseaudio \
 			Xvfb:x11-servers/xorg-server@xvfb
 CHROME_SUB_FILES=	pulse-daemon.conf
-CHROME_SUB_LIST=	CHROME_MSG="" NO_CHROME_MSG=\# PULSEAUDIO=YES
-CHROME_SUB_LIST_OFF=	CHROME_MSG=\# NO_CHROME_MSG="" PULSEAUDIO=NO
+CHROME_SUB_LIST=	CHROME_MSG="" NO_CHROME_MSG=\# PULSEAUDIO=YES \
+			NO_CHROME_CFG=\# TEMPLATE_SDK=false REAP_GRACE=30
+CHROME_SUB_LIST_OFF=	CHROME_MSG=\# NO_CHROME_MSG="" PULSEAUDIO=NO \
+			NO_CHROME_CFG="" TEMPLATE_SDK=true REAP_GRACE=-1
 
 USERS=		livekit-egress
 GROUPS=		livekit-egress
