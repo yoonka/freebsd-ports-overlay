@@ -15,6 +15,9 @@ Feather Mail has been installed to %%PREFIX%%/feather.
 
    Override the config directory with the FEATHER_CONFIG_FOLDER env var.
 
+   The mail_queue: block in server.exs.sample spools deferred mail under
+   %%FEATHER_SPOOLDIR%%; remove it to bounce temporary failures at once.
+
 2. PRIVILEGED PORTS
    Feather binds SMTP ports 25/465/587. By default the service runs as the
    unprivileged "feather" user, which CANNOT bind ports below 1024 without

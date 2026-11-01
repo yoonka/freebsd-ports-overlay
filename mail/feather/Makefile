@@ -1,6 +1,6 @@
 PORTNAME=	feather
 DISTVERSIONPREFIX=	v
-DISTVERSION=	1.0.106
+DISTVERSION=	1.1.1
 CATEGORIES=	mail
 
 MAINTAINER=	nguthiruedwin@gmail.com
@@ -43,24 +43,30 @@ SUB_FILES=	pkg-message
 SUB_LIST=	PORTNAME=${PORTNAME} \
 		FEATHER_USER=${USERS} \
 		FEATHER_GROUP=${GROUPS} \
-		FEATHER_LOGDIR=${FEATHER_LOGDIR}
+		FEATHER_LOGDIR=${FEATHER_LOGDIR} \
+		FEATHER_SPOOLDIR=${FEATHER_SPOOLDIR}
 
 # NB: deliberately do NOT expose FEATHER_USER in PLIST_SUB. Its value is
 # "feather", which also happens to be the install-directory name; adding it
 # would turn every "feather/..." path in pkg-plist into a %%FEATHER_USER%%
 # token and make the plist hostage to the username. The log-dir owner is
 # written literally in pkg-plist instead.
-PLIST_SUB=	FEATHER_LOGDIR=${FEATHER_LOGDIR}
+PLIST_SUB=	FEATHER_LOGDIR=${FEATHER_LOGDIR} \
+		FEATHER_SPOOLDIR=${FEATHER_SPOOLDIR}
 
 # Self-contained release lives here (matches upstream install.sh layout).
 FEATHER_HOME=	${PREFIX}/feather
 FEATHER_LOGDIR?=	/var/log/feather
+# The mail queue (since 1.1.0) creates its own subdirectories, but runs as
+# the feather user, so the parent must exist and be its own. The queue
+# directory in server.exs.sample, as in upstream's example, is under it.
+FEATHER_SPOOLDIR=	/var/spool/feather
 
 # Fully offline build environment for Mix. HOME/MIX_HOME/HEX_HOME point at the
 # per-build cache restored from the prefetched deps archive; MIX_ENV=prod so we
 # assemble the production release. FEATHER_VERSION is how upstream's release
 # CI stamps the tag into the release; without it mix.exs falls back to the
-# VERSION file, which upstream does not bump (it reads 1.0.102 at v1.0.106).
+# VERSION file, which upstream does not bump (it reads 1.0.102 at v1.1.1).
 _MIX_HOME=	${WRKDIR}/.mix
 MIX_ENV=	MIX_ENV=prod \
 		FEATHER_VERSION=${DISTVERSION} \
@@ -158,7 +164,7 @@ post-install:
 		${STAGEDIR}${ETCDIR}/server.exs.sample
 	${INSTALL_DATA} ${FILESDIR}/pipeline.exs.sample \
 		${STAGEDIR}${ETCDIR}/pipeline.exs.sample
-	@${MKDIR} ${STAGEDIR}${FEATHER_LOGDIR}
+	@${MKDIR} ${STAGEDIR}${FEATHER_LOGDIR} ${STAGEDIR}${FEATHER_SPOOLDIR}
 	# Strip the bundled ERTS binaries and NIF shared objects (mix release
 	# copies them unstripped, and the ERTS binaries land read-only so they
 	# must be made writable first). Non-ELF files (shell wrappers, *.src)
