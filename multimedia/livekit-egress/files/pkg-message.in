@@ -1,0 +1,56 @@
+[
+{ type: install
+  message: <<EOM
+LiveKit Egress has been installed as %%PREFIX%%/bin/livekit-egress.
+
+1. Redis. Egress takes its requests from the LiveKit server over Redis, so
+   it must use the same Redis as the server (redis: in livekit.yaml). Redis
+   can run on another host and is therefore not a package dependency; for a
+   local one install databases/redis and enable it.
+
+2. Configure:
+     cp %%ETCDIR%%/egress.yaml.sample %%ETCDIR%%/egress.yaml
+   and set api_key, api_secret, ws_url and redis.
+
+3. Enable and start:
+     sysrc livekit_egress_enable=YES
+     service livekit_egress start
+   Output goes to /var/log/livekit_egress.log. "service livekit_egress stop"
+   ends running egresses and uploads them; set livekit_egress_sig_stop=TERM
+   to wait for them to finish instead.
+
+Local file outputs (no storage: upload configured) are written by the
+%%LIVEKIT_EGRESS_USER%% user: request absolute paths it can write to, for
+example below %%LIVEKIT_EGRESS_HOME%%. Work files and IPC sockets live in
+%%LIVEKIT_EGRESS_HOME%%/tmp, which is emptied on every start.
+EOM
+}
+%%CHROME_MSG%%{ type: install
+%%CHROME_MSG%%  message: <<EOM
+%%CHROME_MSG%%Room composite and web egress (CHROME option):
+%%CHROME_MSG%%
+%%CHROME_MSG%%- The rc.d script starts a private PulseAudio daemon as %%LIVEKIT_EGRESS_USER%%
+%%CHROME_MSG%%  (socket in /var/run/livekit_egress/xdg, settings in
+%%CHROME_MSG%%  %%DATADIR%%/pulse) and stops it with the service.
+%%CHROME_MSG%%- Every such egress starts its own Xvfb display; its socket lives in
+%%CHROME_MSG%%  /tmp/.X11-unix and, as upstream, it runs without X access control, so
+%%CHROME_MSG%%  local users can connect to it. Run egress on a host or jail without
+%%CHROME_MSG%%  untrusted local users.
+%%CHROME_MSG%%- Chrome must play audio through PulseAudio. www/chromium does so with its
+%%CHROME_MSG%%  PULSEAUDIO option (on by default); a chromium built with only SNDIO or
+%%CHROME_MSG%%  ALSA produces recordings without sound.
+%%CHROME_MSG%%- In a jail, give it SysV shared memory (sysvshm=new) for the X server's
+%%CHROME_MSG%%  MIT-SHM extension.
+%%CHROME_MSG%%EOM
+%%CHROME_MSG%%}
+%%NO_CHROME_MSG%%{ type: install
+%%NO_CHROME_MSG%%  message: <<EOM
+%%NO_CHROME_MSG%%Built without the CHROME option, so there is no Chromium, Xvfb or
+%%NO_CHROME_MSG%%PulseAudio. Track, track composite and participant egress work; room
+%%NO_CHROME_MSG%%composite works only through the GStreamer compositor, i.e. audio-only
+%%NO_CHROME_MSG%%requests without a layout, or the built-in layouts with
+%%NO_CHROME_MSG%%enable_template_sdk: true in egress.yaml. Web egress and custom
+%%NO_CHROME_MSG%%templates are refused. Also set pulse_sink_reap_grace_sec: -1 there.
+%%NO_CHROME_MSG%%EOM
+%%NO_CHROME_MSG%%}
+]

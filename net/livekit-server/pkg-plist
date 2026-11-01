@@ -1,0 +1,2 @@
+bin/livekit-server
+@sample(,%%LIVEKIT_GROUP%%,640) %%ETCDIR%%/livekit.yaml.sample

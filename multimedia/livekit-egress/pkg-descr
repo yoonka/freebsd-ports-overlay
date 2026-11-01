@@ -1,0 +1,11 @@
+LiveKit Egress exports LiveKit rooms and their media. It records or
+streams a whole room laid out by a web template (room composite), an
+arbitrary web page (web), a single participant, or individual audio and
+video tracks, and writes MP4, OGG, WebM, MP3 or HLS files, RTMP or SRT
+streams, WebSocket audio and JPEG thumbnails, to local disk or to S3,
+Azure, Google Cloud, Alibaba or Oracle object storage.
+
+It runs next to a LiveKit server and takes requests from it over Redis.
+Track and participant egress use GStreamer pipelines; room composite and
+web egress render the page in headless Chromium inside Xvfb and capture
+its audio through PulseAudio.

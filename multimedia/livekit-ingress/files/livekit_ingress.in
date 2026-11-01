@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# PROVIDE: livekit_ingress
+# REQUIRE: LOGIN
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# livekit_ingress_enable (bool):	Set to NO by default.
+#				Set it to YES to enable livekit-ingress.
+# livekit_ingress_config (path):	Set to %%ETCDIR%%/ingress.yaml by default.
+#				YAML configuration file.
+# livekit_ingress_logfile (path):	Set to /var/log/livekit-ingress/livekit-ingress.log
+#				by default. Receives the service and handler output.
+# livekit_ingress_cachedir (path):	Set to /var/cache/livekit-ingress by default.
+#				Used as XDG_CACHE_HOME, so GStreamer can keep its
+#				plugin registry between handler processes.
+# livekit_ingress_sig_stop (str):	Set to INT by default, which stops all active
+#				ingress sessions at once. Set it to TERM to let
+#				active sessions finish (drain) before exiting;
+#				"service livekit_ingress stop" then waits for them.
+# livekit_ingress_env (str):	Extra environment, e.g. LIVEKIT_API_KEY=...
+# livekit_ingress_env_file (path):	File with extra environment (sh syntax), e.g.
+#				for LIVEKIT_API_SECRET.
+
+. /etc/rc.subr
+
+name=livekit_ingress
+rcvar=livekit_ingress_enable
+
+load_rc_config $name
+
+: ${livekit_ingress_enable:="NO"}
+: ${livekit_ingress_user:="%%LIVEKIT_INGRESS_USER%%"}
+: ${livekit_ingress_group:="%%LIVEKIT_INGRESS_GROUP%%"}
+: ${livekit_ingress_config:="%%ETCDIR%%/ingress.yaml"}
+: ${livekit_ingress_logfile:="/var/log/livekit-ingress/livekit-ingress.log"}
+: ${livekit_ingress_cachedir:="/var/cache/livekit-ingress"}
+: ${livekit_ingress_sig_stop:="INT"}
+
+# rc.subr runs this command as ${livekit_ingress_user} (via `su -m`), so
+# daemon(8) already runs unprivileged and must not be given -u. For the same
+# reason the pidfile lives in a directory the run user owns.
+pidfile="/var/run/${name}/${name}.pid"
+# daemon(8) itself; send it SIGHUP (e.g. from newsyslog) to reopen the log file.
+supervisor_pidfile="/var/run/${name}/daemon.pid"
+procname="%%PREFIX%%/bin/livekit-ingress"
+command="/usr/sbin/daemon"
+command_args="-H -o ${livekit_ingress_logfile} -p ${pidfile} -P ${supervisor_pidfile} ${procname} --config ${livekit_ingress_config}"
+required_files="${livekit_ingress_config}"
+sig_stop="${livekit_ingress_sig_stop}"
+
+livekit_ingress_env="XDG_CACHE_HOME=${livekit_ingress_cachedir} ${livekit_ingress_env}"
+
+start_precmd="livekit_ingress_precmd"
+
+livekit_ingress_precmd()
+{
+	local _logdir
+
+	install -d -o ${livekit_ingress_user} -g ${livekit_ingress_group} -m 0755 /var/run/${name}
+	install -d -o ${livekit_ingress_user} -g ${livekit_ingress_group} -m 0750 ${livekit_ingress_cachedir}
+	_logdir=${livekit_ingress_logfile%/*}
+	if [ ! -d "${_logdir}" ]; then
+		install -d -o ${livekit_ingress_user} -g ${livekit_ingress_group} -m 0750 "${_logdir}"
+	fi
+	if [ ! -e "${livekit_ingress_logfile}" ]; then
+		install -o ${livekit_ingress_user} -g ${livekit_ingress_group} -m 0640 /dev/null "${livekit_ingress_logfile}"
+	fi
+}
+
+run_rc_command "$1"

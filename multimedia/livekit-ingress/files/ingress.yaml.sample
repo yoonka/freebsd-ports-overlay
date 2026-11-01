@@ -1,0 +1,67 @@
+# LiveKit Ingress configuration.
+# Reference: https://github.com/livekit/ingress#config
+#
+# The rc.d script passes this file with --config. Alternatively the whole
+# YAML body can be given in the INGRESS_CONFIG_BODY environment variable.
+
+# Required: API key and secret of the LiveKit server. The LIVEKIT_API_KEY and
+# LIVEKIT_API_SECRET environment variables can be used instead (see
+# livekit_ingress_env_file in the rc.d script).
+api_key: change-me
+api_secret: change-me
+
+# Required: websocket URL of the LiveKit server (or LIVEKIT_WS_URL).
+ws_url: ws://localhost:7880
+
+# Required: must be the same Redis that livekit-server uses. Redis may run on
+# another host.
+redis:
+  address: localhost:6379
+  # username: ""
+  # password: ""
+  # db: 0
+  # use_tls: false
+  # sentinel_master_name: ""
+  # sentinel_addresses: []
+  # cluster_addresses: []
+
+# Log level: debug, info, warn or error.
+logging:
+  level: info
+  # json: false
+
+# TCP port for incoming RTMP connections (-1 disables RTMP).
+rtmp_port: 1935
+# TCP port for incoming WHIP requests (-1 disables WHIP).
+whip_port: 8080
+# Port on localhost used to relay media from the service process to the
+# per-session handler processes.
+http_relay_port: 9090
+
+# HTTP health check port (/ and /availability); disabled when unset.
+# health_port: 8081
+# Prometheus metrics port; disabled when unset.
+# prometheus_port: 9091
+# Debug port (pprof, GStreamer pipeline dot files); disabled when unset.
+# debug_handler_port: 9092
+
+# ICE/RTC settings used by WHIP (same keys as the livekit-server rtc section).
+# The UDP port defaults to 7885.
+# rtc_config:
+#   udp_port: 7885
+#   use_external_ip: false
+#   node_ip: ""
+#   stun_servers: []
+
+# Number of CPUs reserved per ingress session, used to decide whether this
+# instance accepts a new session.
+cpu_cost:
+  rtmp_cpu_cost: 2.0
+  whip_cpu_cost: 2.0
+  whip_bypass_transcoding_cpu_cost: 0.1
+  url_cpu_cost: 2.0
+  # min_idle_ratio: 0.3
+
+# If true, WHIP sessions with transcoding bypassed are handled by the SFU
+# directly.
+# whip_proxy_enabled: false

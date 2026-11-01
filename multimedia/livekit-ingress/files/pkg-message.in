@@ -1,0 +1,38 @@
+[
+{ type: install
+  message: <<EOM
+LiveKit Ingress has been installed as %%PREFIX%%/bin/livekit-ingress.
+
+1. Edit %%ETCDIR%%/ingress.yaml: set api_key, api_secret and ws_url
+   of your LiveKit server, and the Redis address.
+
+   Redis is required: Ingress and livekit-server exchange requests and
+   session state through it, so both must use the same Redis. It can run
+   on another host and is not installed as a dependency; install
+   databases/redis (or valkey) if you want it on this machine.
+
+2. Let livekit-server create ingress sessions by adding to its config:
+
+   ingress:
+     rtmp_base_url: rtmp://<this host>:1935/x
+     whip_base_url: http://<this host>:8080/w
+
+3. Enable and start the service:
+
+   sysrc livekit_ingress_enable=YES
+   service livekit_ingress start
+
+The service runs as %%LIVEKIT_INGRESS_USER%% and logs to
+/var/log/livekit-ingress/livekit-ingress.log. It listens on TCP 1935 (RTMP)
+and 8080 (WHIP) and uses UDP 7885 for WHIP media by default; port 9090
+(http_relay_port) is used on localhost only.
+
+For busy WHIP setups LiveKit suggests a UDP receive buffer of 5 MB. On
+FreeBSD the default comes from the net.inet.udp.recvspace sysctl, capped
+by kern.ipc.maxsockbuf; Ingress warns at startup when it is smaller.
+
+By default "service livekit_ingress stop" ends all active sessions at once.
+Set livekit_ingress_sig_stop=TERM to let them finish first instead.
+EOM
+}
+]

@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# PROVIDE: livekit
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# livekit_enable (bool):	Set to NO by default.
+#				Set it to YES to enable livekit.
+# livekit_config (path):	Set to %%ETCDIR%%/livekit.yaml by default.
+# livekit_flags (string):	Extra arguments for livekit-server.
+#				Empty by default.
+# livekit_user (string):	Set to "%%LIVEKIT_USER%%" by default.
+# livekit_group (string):	Set to "%%LIVEKIT_GROUP%%" by default.
+# livekit_logfile (path):	Set to /var/log/livekit/livekit.log by default.
+#
+# On "stop" livekit-server drains: it waits for connected participants to
+# leave before exiting. Running "stop" a second time forces the shutdown.
+
+. /etc/rc.subr
+
+name=livekit
+rcvar=livekit_enable
+desc="LiveKit WebRTC SFU server"
+
+load_rc_config $name
+
+: ${livekit_enable:="NO"}
+: ${livekit_config:="%%ETCDIR%%/livekit.yaml"}
+: ${livekit_user:="%%LIVEKIT_USER%%"}
+: ${livekit_group:="%%LIVEKIT_GROUP%%"}
+: ${livekit_logfile:="/var/log/livekit/livekit.log"}
+
+# rc.subr runs ${command} as ${livekit_user} (via `su -m`), so daemon(8)
+# already runs unprivileged and must not get -u. The pidfile and the log
+# file therefore live in directories owned by the run user.
+pidfile="/var/run/${name}/${name}.pid"
+procname="%%PREFIX%%/bin/livekit-server"
+command="/usr/sbin/daemon"
+command_args="-f -p ${pidfile} -o ${livekit_logfile} ${procname} --config ${livekit_config}"
+required_files="${livekit_config}"
+
+start_precmd="livekit_precmd"
+
+livekit_precmd()
+{
+	install -d -o ${livekit_user} -g ${livekit_group} -m 0755 /var/run/${name}
+	install -d -o ${livekit_user} -g ${livekit_group} -m 0750 /var/log/livekit
+
+	# rc.subr puts ${livekit_flags} in front of ${command_args}, which
+	# would hand them to daemon(8); pass them to livekit-server instead.
+	command_args="${command_args} ${rc_flags}"
+	rc_flags=""
+}
+
+run_rc_command "$1"

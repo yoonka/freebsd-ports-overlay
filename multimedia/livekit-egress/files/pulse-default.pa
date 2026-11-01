@@ -1,0 +1,10 @@
+# Startup script for the livekit-egress PulseAudio daemon. Unlike the
+# system default.pa it loads no sound card or hotplug modules, so the
+# service never grabs /dev/dsp. Each egress adds its own null sink with
+# pactl load-module module-null-sink.
+
+# Client socket in $XDG_RUNTIME_DIR/pulse/native
+load-module module-native-protocol-unix
+
+# Keep a fallback sink around while no egress is running
+load-module module-always-sink

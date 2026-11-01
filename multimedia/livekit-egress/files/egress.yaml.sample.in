@@ -1,0 +1,103 @@
+# LiveKit Egress configuration. The livekit_egress rc.d script reads
+# %%ETCDIR%%/egress.yaml (rc.conf: livekit_egress_config).
+# Upstream reference: https://github.com/livekit/egress#config
+
+# Required. The key and secret must be valid on the LiveKit server, which
+# sends egress requests over the same Redis. The LIVEKIT_API_KEY,
+# LIVEKIT_API_SECRET and LIVEKIT_WS_URL environment variables can be used
+# instead (rc.conf: livekit_egress_env).
+api_key: APIxxxxxxxxxxxx
+api_secret: change-me
+# URL Chrome and the GStreamer pipelines use to join rooms
+ws_url: ws://127.0.0.1:7880
+redis:
+  # must be the Redis the LiveKit server uses (redis: in its livekit.yaml)
+  address: 127.0.0.1:6379
+  # username: ""
+  # password: ""
+  # db: 0
+
+# Optional HTTP endpoints (0 = disabled)
+health_port: 9090
+# prometheus_port: 9091
+# debug_handler_port: 0
+
+# Port of the built-in room composite template server, bound to localhost
+# (CHROME option). Change it if several egress instances share a host.
+# template_port: 7980
+# Custom room composite templates instead of the built-in ones
+# template_base: http://localhost:7980/
+
+logging:
+  level: info          # debug, info, warn or error
+  # json: true
+
+# Render room composites with the built-in layouts in GStreamer instead of
+# Chrome (custom_base_url requests still need Chrome). Needed for room
+# composite in builds without the CHROME option.
+# enable_template_sdk: false
+
+# Room composite and web egress (CHROME option): Chrome runs without its
+# sandbox unless this is set; the FreeBSD chromium sandbox is untested here.
+# enable_chrome_sandbox: false
+# Allow Chrome to connect to a ws:// (non-TLS) LiveKit URL that is not on
+# localhost, e.g. on a LAN.
+# insecure: false
+# Extra Chrome command line flags
+# chrome_flags:
+#   force-device-scale-factor: 1
+# Unload PulseAudio sinks leaked by crashed handlers after this many
+# seconds (default 30, negative disables). Builds without the CHROME
+# option have no PulseAudio; set -1 there to skip the pactl calls.
+# pulse_sink_reap_grace_sec: 30
+
+# Admission control. FreeBSD has no cgroups; memory_source stays proc_rss.
+# cpu_cost:
+#   max_cpu_utilization: 0.8
+#   room_composite_cpu_cost: 4.0
+#   audio_room_composite_cpu_cost: 1.0
+#   web_cpu_cost: 4.0
+#   audio_web_cpu_cost: 1.0
+#   participant_cpu_cost: 2.0
+#   track_composite_cpu_cost: 1.0
+#   track_cpu_cost: 0.5
+#   max_pulse_clients: 60
+#   max_memory: 0      # GB, 0 disables the memory check
+
+# session_limits:
+#   file_output_max_duration: 4h
+#   stream_output_max_duration: 4h
+#   segment_output_max_duration: 4h
+
+# Default upload target, can be overridden per request. Without one, file
+# and segment outputs are written to the local filesystem: use absolute
+# paths the %%LIVEKIT_EGRESS_USER%% user can write to (relative ones resolve
+# from /). Set disallow_local_storage to refuse that.
+# disallow_local_storage: false
+# storage:
+#   prefix: ""
+#   s3:
+#     access_key: ""
+#     secret: ""
+#     region: us-east-1
+#     endpoint: https://s3.example.com     # S3-compatible stores (MinIO, ...)
+#     bucket: recordings
+#     force_path_style: true
+#   azure:
+#     account_name: ""
+#     account_key: ""
+#     container_name: ""
+#   gcp:
+#     credentials_json: ""
+#     bucket: ""
+#   alioss:
+#     access_key: ""
+#     secret: ""
+#     region: ""
+#     endpoint: ""
+#     bucket: ""
+
+# Fallback when an upload to storage fails, same fields as storage. With no
+# provider, prefix is a local directory the service user can write to.
+# backup:
+#   prefix: %%LIVEKIT_EGRESS_HOME%%/backup

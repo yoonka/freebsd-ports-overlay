@@ -1,3 +1,6 @@
 zitadel:*:566:
 feather:*:588:
 oxigraph:*:589:
+livekit:*:590:
+livekit-egress:*:591:
+livekit-ingress:*:592:

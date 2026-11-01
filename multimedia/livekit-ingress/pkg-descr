@@ -1,0 +1,7 @@
+LiveKit Ingress imports media from outside sources into a LiveKit room.
+It accepts streams pushed over RTMP or WHIP, or pulls them from an HTTP(S)
+URL (HLS, MP4, MKV/WebM, MPEG-TS, Ogg, MP3) or an SRT server, transcodes
+them with GStreamer as needed (H.264 or VP8 simulcast layers and Opus audio)
+and publishes them as tracks of a room participant.
+
+It works together with a LiveKit server and talks to it through Redis.

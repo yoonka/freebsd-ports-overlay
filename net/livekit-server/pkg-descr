@@ -1,0 +1,9 @@
+LiveKit is an open source platform for real-time voice, video and AI
+agent applications. This package provides the LiveKit server, a
+scalable, distributed WebRTC SFU (Selective Forwarding Unit) built on
+Pion WebRTC that routes audio, video and data between participants.
+
+Features include JWT-based authentication, simulcast and SVC, an
+embedded TURN server, webhooks, a Twirp/HTTP room service API, and
+multi-node operation coordinated through Redis, which is also used to
+dispatch jobs to the separate LiveKit Egress and Ingress services.

@@ -1,0 +1,5 @@
+TIMESTAMP = 1793533480
+SHA256 (go/net_livekit-server/livekit-livekit-v1.13.11_GH0/go.mod) = 315ff9d0f7a817b08beeab7c10c741238e4f52619a88e346a7ca8cdeaaa4bbdf
+SIZE (go/net_livekit-server/livekit-livekit-v1.13.11_GH0/go.mod) = 7420
+SHA256 (go/net_livekit-server/livekit-livekit-v1.13.11_GH0/livekit-livekit-v1.13.11_GH0.tar.gz) = c8d9b7ba9d66c8b5f314a438c0c2493815e7e70085e37706b888cab3c4ab8f8d
+SIZE (go/net_livekit-server/livekit-livekit-v1.13.11_GH0/livekit-livekit-v1.13.11_GH0.tar.gz) = 1225553

@@ -1,0 +1,38 @@
+[
+{ type: install
+  message: <<EOM
+To configure LiveKit server:
+
+1. Generate an API key/secret pair and put it under "keys:" in
+   %%ETCDIR%%/livekit.yaml (readable by the %%LIVEKIT_USER%% user,
+   e.g. chown root:%%LIVEKIT_GROUP%% and chmod 640):
+
+     livekit-server generate-keys
+
+   The sample config points at a Redis server ("redis:"). Redis is only
+   needed for multi-node setups or with LiveKit Egress/Ingress; remove
+   that section for a standalone node.
+
+2. Open these ports in the firewall (defaults; see "livekit-server
+   --config %%ETCDIR%%/livekit.yaml ports"):
+
+     TCP 7880         HTTP/WebSocket signalling and API (put TLS in
+                      front of it, e.g. a reverse proxy)
+     UDP 50000-60000  WebRTC media (rtc.port_range_start/end)
+     TCP 7881         WebRTC over TCP fallback (rtc.tcp_port)
+     TURN, if enabled: turn.udp_port (UDP 3478) and turn.tls_port
+     (TCP 5349)
+
+   The service runs as %%LIVEKIT_USER%%, so ports below 1024 (e.g. TURN/TLS
+   on 443) need mac_portacl(4) or net.inet.ip.portrange.reservedhigh.
+
+3. A UDP receive buffer of at least 5 MB is recommended:
+
+     sysctl kern.ipc.maxsockbuf=33554432
+
+4. sysrc livekit_enable=YES && service livekit start
+
+   Logs go to /var/log/livekit/livekit.log.
+EOM
+}
+]

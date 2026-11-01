@@ -1,0 +1,5 @@
+bin/livekit-egress
+@sample %%ETCDIR%%/egress.yaml.sample
+%%CHROME%%%%DATADIR%%/pulse/daemon.conf
+%%CHROME%%%%DATADIR%%/pulse/default.pa
+@dir(%%LIVEKIT_EGRESS_USER%%,%%LIVEKIT_EGRESS_GROUP%%,0750) %%LIVEKIT_EGRESS_HOME%%

@@ -1,0 +1,5 @@
+TIMESTAMP = 1793533447
+SHA256 (go/multimedia_livekit-ingress/livekit-ingress-v1.5.0/v1.5.0.mod) = 2274b6f3ac30c595eb6039bf9825c7560c782da1a8bde1598ffd7f65e8393f18
+SIZE (go/multimedia_livekit-ingress/livekit-ingress-v1.5.0/v1.5.0.mod) = 5141
+SHA256 (go/multimedia_livekit-ingress/livekit-ingress-v1.5.0/v1.5.0.zip) = b777a79d59009bfb81c2a5923e8e8ce44f5bcd23b3ab9cec3754c62481c66b8c
+SIZE (go/multimedia_livekit-ingress/livekit-ingress-v1.5.0/v1.5.0.zip) = 320735

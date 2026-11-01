@@ -1,0 +1,117 @@
+#!/bin/sh
+
+# PROVIDE: livekit_egress
+# REQUIRE: LOGIN cleartmp
+# KEYWORD: shutdown
+#
+# Add these lines to /etc/rc.conf.local or /etc/rc.conf
+# to enable this service:
+#
+# livekit_egress_enable (bool):	Set to NO by default.
+#				Set it to YES to enable livekit-egress.
+# livekit_egress_config (str):	Set to "%%ETCDIR%%/egress.yaml" by default.
+#				Path to the YAML configuration file.
+# livekit_egress_logfile (str):	Set to "/var/log/livekit_egress.log" by
+#				default. Service and handler output.
+# livekit_egress_pulseaudio (bool):
+#				Set to %%PULSEAUDIO%% by default. Start a private
+#				PulseAudio daemon for room composite and web
+#				egress (needs the CHROME option).
+# livekit_egress_pulse_config (str):
+#				Set to "%%DATADIR%%/pulse/daemon.conf"
+#				by default. daemon.conf for that PulseAudio.
+# livekit_egress_sig_stop (str):	Set to "INT" by default: stop running
+#				egresses, upload and exit. "TERM" instead
+#				waits for running egresses to finish.
+# livekit_egress_env (str):	Extra environment, e.g. "GST_DEBUG=3".
+# livekit_egress_args (str):	Extra command line arguments.
+
+. /etc/rc.subr
+
+name=livekit_egress
+rcvar=livekit_egress_enable
+
+load_rc_config $name
+
+: ${livekit_egress_enable:="NO"}
+: ${livekit_egress_user:="%%LIVEKIT_EGRESS_USER%%"}
+: ${livekit_egress_group:="%%LIVEKIT_EGRESS_GROUP%%"}
+: ${livekit_egress_config:="%%ETCDIR%%/egress.yaml"}
+: ${livekit_egress_logfile:="/var/log/${name}.log"}
+: ${livekit_egress_pulseaudio:="%%PULSEAUDIO%%"}
+: ${livekit_egress_pulse_config:="%%DATADIR%%/pulse/daemon.conf"}
+: ${livekit_egress_sig_stop:="INT"}
+: ${livekit_egress_args:=""}
+
+livekit_egress_home="%%LIVEKIT_EGRESS_HOME%%"
+livekit_egress_rundir="/var/run/${name}"
+# Private runtime directory: PulseAudio's socket and pid file
+livekit_egress_xdg="${livekit_egress_rundir}/xdg"
+
+# The service, Chrome, PulseAudio and GStreamer all need a writable HOME and
+# a common XDG_RUNTIME_DIR to find the PulseAudio socket.
+_livekit_egress_env="HOME=${livekit_egress_home} \
+XDG_RUNTIME_DIR=${livekit_egress_xdg} \
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:%%LOCALBASE%%/sbin:%%LOCALBASE%%/bin"
+livekit_egress_env="${_livekit_egress_env} ${livekit_egress_env}"
+
+# rc.subr runs this command as ${livekit_egress_user} (via `su -m`), so
+# daemon(8) already runs unprivileged: do not also pass -u, and keep the
+# pidfile in a directory the run user owns.
+pidfile="${livekit_egress_rundir}/${name}.pid"
+procname="%%PREFIX%%/bin/livekit-egress"
+command="/usr/sbin/daemon"
+command_args="-f -p ${pidfile} -o ${livekit_egress_logfile} \
+	${procname} --config ${livekit_egress_config} ${livekit_egress_args}"
+sig_stop="${livekit_egress_sig_stop}"
+
+start_precmd="livekit_egress_precmd"
+stop_postcmd="livekit_egress_pulse_stop"
+
+livekit_egress_pulse()
+{
+	su -m ${livekit_egress_user} -c "/usr/bin/env \
+	    HOME=${livekit_egress_home} \
+	    XDG_RUNTIME_DIR=${livekit_egress_xdg} \
+	    PULSE_CONFIG=${livekit_egress_pulse_config} \
+	    %%LOCALBASE%%/bin/pulseaudio $*"
+}
+
+livekit_egress_pulse_stop()
+{
+	if checkyesno livekit_egress_pulseaudio; then
+		livekit_egress_pulse --kill > /dev/null 2>&1
+	fi
+	return 0
+}
+
+livekit_egress_precmd()
+{
+	if [ ! -r "${livekit_egress_config}" ]; then
+		err 1 "${livekit_egress_config} is missing, see ${livekit_egress_config}.sample"
+	fi
+
+	install -d -o ${livekit_egress_user} -g ${livekit_egress_group} \
+	    -m 0750 ${livekit_egress_home} ${livekit_egress_home}/tmp
+	install -d -o ${livekit_egress_user} -g ${livekit_egress_group} \
+	    -m 0755 ${livekit_egress_rundir}
+	install -d -o ${livekit_egress_user} -g ${livekit_egress_group} \
+	    -m 0700 ${livekit_egress_xdg}
+	if [ ! -e "${livekit_egress_logfile}" ]; then
+		install -o ${livekit_egress_user} -g ${livekit_egress_group} \
+		    -m 0640 /dev/null ${livekit_egress_logfile}
+	fi
+
+	# Work directories of handlers from a previous run (upstream's
+	# entrypoint.sh clears them too)
+	find ${livekit_egress_home}/tmp -mindepth 1 -delete
+
+	if checkyesno livekit_egress_pulseaudio; then
+		livekit_egress_pulse --kill > /dev/null 2>&1
+		rm -rf ${livekit_egress_xdg}/pulse
+		livekit_egress_pulse --daemonize=yes || \
+		    err 1 "failed to start PulseAudio for ${name}"
+	fi
+}
+
+run_rc_command "$1"

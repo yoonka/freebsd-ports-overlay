@@ -1,0 +1,16 @@
+; PulseAudio daemon settings for the private sound server that the
+; livekit_egress rc.d script starts as the %%LIVEKIT_EGRESS_USER%% user (PULSE_CONFIG).
+; Chrome plays every web and room composite egress into a null sink of its
+; own there, and GStreamer records that sink's monitor. See
+; pulse-daemon.conf(5).
+
+daemonize = yes
+allow-exit = no
+exit-idle-time = -1
+
+; Do not cap open files at the default 256, which limits how many Chrome
+; instances can connect (upstream's image does the same).
+rlimit-nofile = -1
+
+; No hardware detection, see default.pa.
+default-script-file = %%DATADIR%%/pulse/default.pa

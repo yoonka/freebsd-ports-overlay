@@ -1,0 +1,7 @@
+TIMESTAMP = 1793534576
+SHA256 (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/pnpm-10.30.3.tgz) = ff0a72140f6a6d66c0b284f6c9560aff605518e28c29aeac25fb262b74331588
+SIZE (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/pnpm-10.30.3.tgz) = 4491640
+SHA256 (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/go.mod) = 580e7f32520498909b65604f4e1f53387dab461e2822fab3f8ce9fe2ce827179
+SIZE (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/go.mod) = 9346
+SHA256 (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/livekit-egress-v1.15.0_GH0.tar.gz) = 93b39410c52fb863948dbb2ffef1b994c2716bdfcbe81a3927d540cacfaec75a
+SIZE (go/multimedia_livekit-egress/livekit-egress-v1.15.0_GH0/livekit-egress-v1.15.0_GH0.tar.gz) = 862515
