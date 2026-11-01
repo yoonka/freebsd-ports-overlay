@@ -1,6 +1,6 @@
 PORTNAME=	zitadel
 DISTVERSIONPREFIX=	v
-DISTVERSION=	4.19.5
+DISTVERSION=	4.20.0
 CATEGORIES=	security www
 
 MAINTAINER=	ports@FreeBSD.org
@@ -24,7 +24,7 @@ FETCH_DEPENDS=	node:www/node22 \
 # client for admin convenience without adding a libpq linkage dependency.
 TEST_DEPENDS=	${LOCALBASE}/bin/pg_ctl:databases/postgresql${PGSQL_VER_NODOT}-server
 
-USES=		go:1.25+,modules,no_targets linux:rl9 nodejs:build,22 pgsql:16+
+USES=		go:1.26+,modules,no_targets linux:rl9 nodejs:build,22 pgsql:16+
 WANT_PGSQL=	client
 USE_LINUX=	base:build
 
