@@ -3,7 +3,7 @@ misc/claude-code: run the extracted bundle on FreeBSD's own Bun
 
 Builds on attachment 275119 (bug 298047) and runs the JavaScript it
 extracts from the Linux executable on stock Bun instead of node. The
-runtime is lang/bun 1.4.3, switched to the official FreeBSD release
+runtime is lang/bun 1.4.4, switched to the official FreeBSD release
 binaries (see the notes for lang/bun).
 
 Base: misc/claude-code as in ports main at
@@ -66,19 +66,31 @@ Changes relative to 275119
     inherited on fork and reset on execve, so commands run by claude
     stay debuggable. Claude only calls it in the remote-session agent
     proxy.
+  - Bun.ant.loginTty (since 2.1.316), through login_tty(3) from
+    libutil.so.10 (libutil.so.9 before FreeBSD 15). A background-session
+    worker of the daemon is started on a pty that is not yet its
+    controlling terminal and calls loginTty(0) to make it one, so that
+    /dev/tty works for the commands it runs. Without it the worker logs
+    bg_worker_ctty "ffi_unavailable" and runs without one.
   - Not provided, on purpose: Bun.ant.memoryPressureLevel (only called
     on macOS), Bun.FetchSession (feature-detected, falls back to
     fetch()), Bun.unsafe.setJITPolicy (called with ?.()),
     Bun.ant.windowsSandboxDeniesArg (since 2.1.301; called on Windows
-    only, with ?.()).
+    only, with ?.()), and since 2.1.316: Bun.ant.ttyName (macOS only),
+    Bun.ant.windowsFolderSecurity, windowsProcessList and
+    windowsProcessCreationTime (Windows only, feature-detected), and
+    Bun.ant.posixFsAt (feature-detected; without it the git
+    info/exclude writer uses the path-based calls, and the macOS-only
+    "anchor" file backend does not come up).
 
 - New files/check-bun-api.js, run in post-install against the staged
   tree: it lists every Bun.* API the bundle references and fails the
   build if stock Bun plus bun-ant-freebsd.cjs lacks one that is not on
   the known-absent list. Otherwise a missing API can fail silently; for
   example, without CellSegmenter the TUI just stays blank. It caught
-  Bun.FetchSession, new in 2.1.283, and Bun.ant.windowsSandboxDeniesArg,
-  new in 2.1.301.
+  Bun.FetchSession, new in 2.1.283, Bun.ant.windowsSandboxDeniesArg,
+  new in 2.1.301, and the six Bun.ant APIs above that are new in
+  2.1.316.
 
 - files/claude.in runs `bun --no-env-file --config=/dev/null cli`.
   Plain bun loads .env files and bunfig.toml from the current directory,
@@ -122,6 +134,11 @@ Changes relative to 275119
 - Updated to 2.1.301. pkg-plist gained the two .woff2.asset files that
   2.1.283 added, and lost payload.template.html.asset, which 2.1.301 no
   longer ships.
+
+- Updated to 2.1.316: bun-ant-freebsd.cjs gained loginTty, and
+  check-bun-api.js's known-absent list the other five new Bun.ant APIs
+  (see above). pkg-plist unchanged. The clawgod pin is still current:
+  no commit has touched bun-ant-shim.cjs since it.
 
 
 Fixes that also apply to 275119
@@ -169,7 +186,10 @@ Tested
 ------
 
 amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283 on Bun
-1.4.2 (2.1.301 on Bun 1.4.3: testport and the TUI only):
+1.4.2 (2.1.301 on Bun 1.4.3: testport and the TUI only; 2.1.316 on Bun
+1.4.4: testport, the TUI, and loginTty, which in a child started
+detached on a fresh pty returns true and makes /dev/tty openable where
+it failed with ENXIO before):
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
@@ -225,8 +245,8 @@ Open issues and not tested
 - Claude in Chrome cannot work outside Anthropic's executable: it starts
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
-- Version skew: the bundle is built against Anthropic's Bun (1.4.3 plus
-  private APIs, as embedded in 2.1.301) and runs here on upstream 1.4.3,
+- Version skew: the bundle is built against Anthropic's Bun (1.4.4 plus
+  private APIs, as embedded in 2.1.316) and runs here on upstream 1.4.4,
   so for now only the private APIs differ. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer

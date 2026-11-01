@@ -67,6 +67,29 @@ function c()
 	return (libc);
 }
 
+// login_tty(3) is in libutil, which FreeBSD 15.0 bumped from libutil.so.9 to
+// libutil.so.10.
+let loginTty = null;
+
+function lt()
+{
+	if (loginTty === null) {
+		const { dlopen, FFIType } = require('bun:ffi');
+		const sym = {
+			login_tty: { args: [FFIType.i32], returns: FFIType.i32 },
+		};
+		let lib;
+
+		try {
+			lib = dlopen('libutil.so.10', sym);
+		} catch {
+			lib = dlopen('libutil.so.9', sym);
+		}
+		loginTty = lib.symbols.login_tty;
+	}
+	return (loginTty);
+}
+
 if (process.platform === 'freebsd') {
 	const { ptr } = require('bun:ffi');
 	const ant = Bun.ant ??= {};
@@ -121,4 +144,11 @@ if (process.platform === 'freebsd') {
 			return (c().procctl(P_PID, BigInt(process.pid),
 			    PROC_TRACE_CTL, ptr(v)) === 0);
 		};
+
+	// A background-session worker of the daemon (CLAUDE_BG_BACKEND=daemon)
+	// is started on a pty that is not yet its controlling terminal, and
+	// calls loginTty(0) to make it one (bg_worker_ctty), so that /dev/tty
+	// works for the commands it runs. Since 2.1.316.
+	if (typeof ant.loginTty !== 'function')
+		ant.loginTty = (fd) => lt()(fd) === 0;
 }
