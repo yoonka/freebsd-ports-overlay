@@ -1,0 +1,77 @@
+#!/bin/sh
+#
+# orca-ide: Orca's server and CLI on FreeBSD's node.
+#
+#   orca-ide serve [orcad options]	run the server in the foreground
+#   orca-ide <command> ...		Orca's CLI (account, skills, repo, ...)
+#
+# `orca-ide serve` starts orcad, upstream's Node server, directly. Upstream's
+# own `orca serve` only does that after checking the platform against a list
+# that does not include FreeBSD, and otherwise falls back to the Electron app.
+# Like `orca serve` it listens on every interface unless --bind is given.
+# orcad's options: --bind <ip>, --port <n> (default 6768), --pairing-address
+# <host>, --no-pairing, --mobile-pairing, --grant-desktop-control, --json.
+#
+# The profile is $ORCA_USER_DATA, by default $XDG_DATA_HOME/Orca or ~/.orca,
+# as for orcad itself; the CLI is pointed at the same one.
+
+APPDIR=%%APPDIR%%
+NODE=%%NODE%%
+
+if [ -z "${ORCA_USER_DATA}" ]; then
+	if [ -n "${XDG_DATA_HOME}" ]; then
+		ORCA_USER_DATA=${XDG_DATA_HOME}/Orca
+	else
+		ORCA_USER_DATA=${HOME}/.orca
+	fi
+fi
+ORCA_USER_DATA_PATH=${ORCA_USER_DATA}
+export ORCA_USER_DATA ORCA_USER_DATA_PATH
+unset NODE_OPTIONS NODE_REPL_EXTERNAL_MODULE ELECTRON_RUN_AS_NODE
+
+# orcad refuses to start while its instance lock names a process it cannot
+# prove gone, and on FreeBSD it has no machine or boot identity to prove it
+# with, so a lock left by a crash or a reboot blocks every later start.
+# Remove it when the process it names is not an orcad.
+clear_stale_lock()
+{
+	local lock pid
+
+	lock=${ORCA_USER_DATA}/orcad.lock
+	[ -f "${lock}" ] || return 0
+	pid=$(sed -n 's/.*"pid" *: *\([0-9][0-9]*\).*/\1/p' "${lock}" | head -n 1)
+	if [ -n "${pid}" ] &&
+	    ps -ww -p "${pid}" -o command= 2>/dev/null | grep -q 'orcad\.js'; then
+		return 0
+	fi
+	echo "orca-ide: removing the stale instance lock ${lock}" \
+	    "(pid ${pid:-unknown} is not running orcad)" >&2
+	rm -f "${lock}"
+}
+
+case "$1 $2" in
+"serve restore"*)
+	;;
+"serve service"*)
+	echo "orca-ide: use the rc(8) script instead: sysrc orca_ide_enable=YES;" \
+	    "service orca_ide start" >&2
+	exit 64
+	;;
+"serve "*)
+	shift
+	bind=--bind
+	for arg; do
+		case "${arg}" in
+		--bind) bind= ;;
+		esac
+	done
+	mkdir -p "${ORCA_USER_DATA}" || exit 1
+	clear_stale_lock
+	exec "${NODE}" --require "${APPDIR}/freebsd-compat.cjs" \
+	    "${APPDIR}/orcad.js" --web-client-root "${APPDIR}/web" \
+	    ${bind:+--bind 0.0.0.0} "$@"
+	;;
+esac
+
+exec "${NODE}" --require "${APPDIR}/freebsd-compat.cjs" \
+    "${APPDIR}/out/cli/index.js" "$@"

@@ -1,0 +1,94 @@
+#!/bin/sh
+#
+# Point the port at upstream's latest release: DISTVERSION, and the versions
+# of node-pty, @parcel/watcher and node-addon-api that release locks, which
+# are the sources the port builds the native addons from.
+#
+# Usage: find-new-version <path to the port's Makefile>
+# (run through `make find-new-version`)
+
+set -e
+
+makefile=${1:?usage: find-new-version Makefile}
+repo=stablyai/orca
+
+fail() {
+	echo "find-new-version: $*" >&2
+	exit 1
+}
+
+# Releases, not tags: upstream tags every release candidate too.
+new=$(fetch -qo - "https://api.github.com/repos/$repo/releases/latest" |
+    grep -o '"tag_name": *"v[^"]*"' | sed 's/.*"v\([^"]*\)"$/\1/')
+[ -n "$new" ] || fail "could not read the latest release from GitHub"
+current=$(sed -n 's/^DISTVERSION=[[:space:]]*//p' "$makefile")
+
+lock=$(mktemp -t orca-lock)
+trap 'rm -f "$lock"' EXIT
+fetch -qo "$lock" "https://raw.githubusercontent.com/$repo/v$new/pnpm-lock.yaml" ||
+    fail "could not fetch pnpm-lock.yaml for v$new"
+
+# The root project's dependency, e.g.
+#       node-pty:
+#         specifier: ^1.1.0
+#         version: 1.1.0(patch_hash=...)
+locked() {
+	awk -v key="      $1:" '
+		$0 == key { found = 1; next }
+		found && /^        version:/ {
+			sub(/^ *version: */, ""); sub(/\(.*/, ""); print; exit
+		}' "$lock"
+}
+
+# The node-addon-api in the snapshot of a package, e.g.
+#   node-pty@1.1.0(patch_hash=...):
+#     dependencies:
+#       node-addon-api: 7.1.1
+addon_api_of() {
+	awk -v key="  $1" '
+		index($0, key) == 1 { found = 1; next }
+		/^  [^ ]/ { found = 0 }
+		found && /^      node-addon-api:/ { print $2; exit }' "$lock"
+}
+
+pty=$(locked node-pty)
+watcher=$(locked "'@parcel/watcher'")
+[ -n "$pty" ] || fail "no node-pty in the root project of v$new's lockfile"
+[ -n "$watcher" ] || fail "no @parcel/watcher in the root project of v$new's lockfile"
+napi_pty=$(addon_api_of "node-pty@$pty")
+napi_watcher=$(addon_api_of "'@parcel/watcher@$watcher'")
+[ -n "$napi_pty" ] || fail "no node-addon-api for node-pty@$pty"
+[ "$napi_pty" = "$napi_watcher" ] ||
+    fail "node-pty uses node-addon-api $napi_pty, @parcel/watcher $napi_watcher; the port builds both with one"
+
+# pnpm keys a patched dependency by the patch's SHA-256, so the lockfile
+# says what the node-pty patch fetched from the same tag must hash to.
+patch_hash=$(awk '
+	$0 == "      node-pty:" { found = 1; next }
+	found && /^        version:/ {
+		if (match($0, /patch_hash=[0-9a-f]+/))
+			print substr($0, RSTART + 11, RLENGTH - 11)
+		exit
+	}' "$lock")
+
+tab=$(printf '\t')
+sed -i '' \
+    -e "s/^DISTVERSION=.*/DISTVERSION=${tab}$new/" \
+    -e "s/^NODE_PTY_VERSION=.*/NODE_PTY_VERSION=${tab}$pty/" \
+    -e "s/^PARCEL_WATCHER_VERSION=.*/PARCEL_WATCHER_VERSION=${tab}$watcher/" \
+    -e "s/^NODE_ADDON_API_VERSION=.*/NODE_ADDON_API_VERSION=${tab}$napi_pty/" \
+    "$makefile"
+
+if [ "$new" = "$current" ]; then
+	echo "=> No new version available (current: $current)"
+else
+	echo "=> New version available: $current -> $new"
+fi
+echo "   node-pty $pty, @parcel/watcher $watcher, node-addon-api $napi_pty"
+if [ -n "$patch_hash" ]; then
+	echo "   After makesum, distinfo's SHA256 for node-pty@$pty.patch must be"
+	echo "   $patch_hash"
+else
+	echo "   The lockfile has no node-pty patch: drop PATCHFILES and re-check the"
+	echo "   node-pty JavaScript in the .deb against the npm release."
+fi

@@ -1,0 +1,297 @@
+devel/orca-ide: Orca's server (`orca serve`) on FreeBSD's node
+===============================================================
+
+New port, draft. It packages the server half of Orca
+(https://github.com/stablyai/orca, MIT), an Electron "agent IDE" that
+runs coding agents such as Claude Code, Codex and OpenCode in git
+worktrees and terminals. The desktop app is not ported. The server keeps
+the projects, worktrees, terminals and agent sessions. The UI is
+provided by paired clients:
+
+- the Orca desktop app on Linux, macOS or Windows (Settings -> Remote
+  Orca Servers -> Add Server);
+- any web browser, through the web client that the server itself
+  serves;
+- the Orca mobile app.
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay
+(devel/orca-ide)
+
+
+What upstream's `orca serve` is
+-------------------------------
+
+`orca serve` is a command of the desktop app's CLI. It starts orcad,
+the Orca runtime built with esbuild to run on plain Node 24 without
+Electron. orcad listens on one port (6768 by default) for HTTP, which
+serves the web client, and for WebSocket RPC. Clients pair once with a
+one-time link that carries a device token and the server's public key.
+After that, traffic is end-to-end encrypted with NaCl box over plain
+ws://.
+
+Upstream's CLI only starts orcad on eight Linux, macOS and Windows
+targets. It also replaces Node with a pinned Node binary that it
+downloads from nodejs.org. On any other platform it falls back to
+running the whole Electron app headless in Xvfb. orcad itself only
+requires Node >= 24, so this port runs it directly on www/node24.
+
+
+How the port is built
+---------------------
+
+There is no source build of the JavaScript. Upstream's build needs pnpm
+12, two lockfiles of about 1,400 and several hundred packages, Bun,
+TypeScript 7 and a git checkout. Its output, the server, is
+platform-neutral JavaScript that upstream ships, built and tested,
+inside every Linux release. The port takes it from there, as
+misc/claude-code does from its release.
+
+Distfiles, all in distinfo, under DIST_SUBDIR orca-ide/<version>:
+
+- orca-ide_<version>_amd64.deb, the Linux release. The same file is
+  used on every architecture.
+- node-pty-1.1.0.tgz, watcher-2.5.6.tgz (@parcel/watcher) and
+  node-addon-api-7.1.1.tgz from the npm registry. These are the sources
+  of the two native addons, at the versions the release's
+  pnpm-lock.yaml pins.
+- node-pty@1.1.0.patch and LICENSE, fetched from the release tag on
+  raw.githubusercontent.com. Orca builds node-pty with that patch, and
+  the node-pty JavaScript in the .deb already has it applied, so the
+  addon has to be built from the same patched source. The file is
+  applied as PATCHFILES. pnpm records a patch's SHA-256 in the lockfile
+  (`patch_hash`), which find-new-version uses to cross-check it.
+
+scripts/post-extract:
+
+- unpacks resources/orcad-template (the server package the desktop app
+  deploys to remote hosts) and the renderer's web build from the .deb;
+- installs the template without its per-platform parts (targets/), its
+  manifest and its ripgrep licences, and the web client under web/;
+- fails the build if any of its assumptions changes:
+  - the template schema (4);
+  - out/package.json's version against DISTVERSION;
+  - the .deb's node-pty version against NODE_PTY_VERSION;
+  - the list of per-platform files in targets/linux-x64-glibc, where a
+    new entry would most likely be a new native addon.
+
+Leaving out the template's marker files (.runtime-node, .server-target)
+makes orcad run "unpackaged" on the system node instead of demanding
+its pinned Node. That path is orcad's own, upstream code
+orcad-bundled-runtime.ts.
+
+do-build builds node-pty and @parcel/watcher with npm's node-gyp against
+www/node24's headers (--nodedir=${LOCALBASE}, no download). Both use
+N-API.
+- node-pty uses forkpty(3) from libutil. Orca's patch only adds Linux
+  and macOS branches.
+- @parcel/watcher uses its kqueue backend on FreeBSD.
+- orcad uses build/Release/pty.node as is when it exists, and only falls
+  back to its prebuilt-slot machinery otherwise.
+
+ripgrep: orcad runs <install dir>/ripgrep/<platform>-<arch>/rg. This is
+a symlink to textproc/ripgrep's rg.
+
+
+FreeBSD fixes
+-------------
+
+1. ps(1) column lists (files/freebsd-compat.cjs, loaded with
+   `node --require`)
+
+   Orca reads the process table with column lists like
+   `ps -axo pid=,ppid=,pgid=,tpgid=,stat=,tty=,etimes=,command=`.
+   POSIX says that the text after a "=" is the column header, up to the
+   end of the argument. FreeBSD's ps follows that and prints a single
+   pid column headed ",ppid=,..."; procps and macOS split at the commas
+   anyway. Orca also uses `-e` for "every process" (procps), which on
+   FreeBSD means "show the environment".
+
+   Process-group cleanup, foreground detection and the busy state of
+   terminals then fail silently. Measured in the test jail: a terminal
+   whose shell left a background job was closed. Without the fix, the
+   job survived, reparented to init. With it, it was killed.
+
+   The fix rewrites ps arguments where they reach child_process, which
+   is the only thing the call sites have in common:
+   - every column gets its own -o;
+   - -e becomes -A.
+   This covers argument vectors and plain `ps ...` command strings.
+   The 1.4.245 bundles hold 51 column lists of this shape in 11
+   files, in minified code that changes with every release. Patching
+   each site would mean as many fragile patterns.
+
+   bin/orca-ide loads the shim for orcad and for the CLI. orcad's
+   terminal daemon inherits process.execArgv
+   (daemon-launched-child-spawn.ts), so it gets it too.
+
+   files/check-ps-calls.cjs runs in do-build. It applies the rewrite to
+   every ps column list in the bundles and to fixed cases, and it fails
+   the build if:
+   - a list stays unsplit;
+   - a release puts ps inside a larger shell command that the shim
+     would not see;
+   - no lists are found at all, which would mean upstream changed
+     approach and the shim needs re-checking.
+
+   The fix is upstreamable as is: one -o per column means the same to
+   every ps.
+
+2. Stale instance lock (bin/orca-ide)
+
+   orcad keeps <profile>/orcad.lock. Before reclaiming a lock left
+   behind, it wants proof that the holder is gone, from a machine ID
+   (/etc/machine-id on Linux, IOPlatformUUID on macOS), a boot ID or a
+   "local disk" check. All of them are Linux and macOS only, so on
+   FreeBSD every start after a crash, a kill -9 or a reboot was refused
+   with OrcadInstanceLockError, reproduced in the test jail.
+
+   `orca-ide serve`, which the rc script also uses, removes the lock
+   when the pid it names is not running orcad.js, and says so on
+   stderr. Upstream's own `--reclaim-stale-lock` is documented as Linux
+   only.
+
+3. Environment
+
+   - The rc script sets HOME, SHELL and PATH.
+   - orcad probes /bin/bash when SHELL is unset; FreeBSD has bash in
+     /usr/local/bin.
+   - Its fallback shells are /bin/zsh, then /bin/bash, then /bin/sh.
+   - The default SHELL is the service user's login shell, or bash, zsh
+     or /bin/sh when that is nologin.
+
+sysutils/lsof is a run dependency. Without /proc, orcad finds the
+working directory of a pane's process with `lsof -d cwd`, so new panes
+can inherit it.
+
+
+Service
+-------
+
+The rc script orca_ide runs `orca-ide serve` under daemon(8) with
+restart (-r -R 10), as orca_ide_user. Its rcvars are:
+
+- orca_ide_bind (0.0.0.0, like upstream's `orca serve`) and
+  orca_ide_port (6768);
+- orca_ide_pairing_address;
+- orca_ide_datadir (~user/.orca, orcad's default);
+- orca_ide_shell and orca_ide_path;
+- orca_ide_pairing (NO) and orca_ide_flags;
+- orca_ide_logfile (/var/log/orca_ide.log, 0600, owned by the user).
+
+User and group: orca, 593 (UIDs, GIDs), home /var/db/orca-ide.
+
+Notes on the implementation:
+- daemon(8)'s own -u is not used. A restarted child calls
+  setusercontext() again after the supervisor has dropped privileges,
+  and fails with "failed to set user environment". rc.subr's
+  orca_ide_user is used instead.
+- For the same reason the pid file lives in /var/run/orca_ide/, owned
+  by the user.
+
+Pairing:
+- Like upstream's service, it starts with --no-pairing, so pairing
+  links do not end up in logs.
+- `service orca_ide pair` restarts the server once with a pairing offer
+  and prints the "Pairing URL" (for the desktop app) and the
+  "Web client URL" (for a browser) from the log.
+
+Stopping the service stops orcad, not its terminal daemon. Upstream
+designs it that way, so that terminals and agents survive restarts.
+
+`orca-ide serve` runs the same server in the foreground and accepts
+orcad's options: --bind, --port, --pairing-address, --no-pairing,
+--mobile-pairing, --grant-desktop-control and --json. Other arguments
+go to upstream's CLI (account, skills, repo, worktree, terminal, ...),
+pointed at the same profile.
+
+
+How to update
+-------------
+
+1. `make find-new-version`. It reads the latest GitHub release (not
+   tags: upstream also tags every -rc) and the release's
+   pnpm-lock.yaml. It then sets DISTVERSION, NODE_PTY_VERSION,
+   PARCEL_WATCHER_VERSION and NODE_ADDON_API_VERSION, and prints the
+   SHA-256 the node-pty patch must have.
+2. makesum, as in AGENTS.md. Check that distinfo's SHA256 for
+   node-pty@<version>.patch matches the printed patch_hash.
+3. testport. It stops at the first assumption that no longer holds:
+   - post-extract: template schema, versions, per-platform files;
+   - the node-pty patch failing to apply, or the addons failing to
+     build;
+   - check-ps-calls.cjs: new ways of calling ps;
+   - check-plist: a new or removed server file. Only the web client and
+     the hashed mobile assets are listed dynamically.
+4. Smoke test in a jail (see below): the readiness lines must report
+   "PTY self-test passed", `service orca_ide pair` must print both
+   links, and a terminal close must not leave its background jobs
+   behind.
+
+Upstream releases nearly every day. Bumping on request, or monthly, is
+enough; keep the desktop clients on a close version.
+
+
+Tested
+------
+
+With 1.4.245, on FreeBSD 15.1 amd64 with www/node24 24.21.0:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass.
+- In a throwaway vnet jail, from the package plus node24, git, lsof and
+  ripgrep:
+  - service start. orcad reports "Orca server ready" and "Terminal
+    daemon: live -- PTY self-test passed (pty-spawn: healthy)".
+  - `service orca_ide pair` prints both links. The web client
+    (web-index.html and its assets) is served over HTTP.
+  - A scripted client completed the pairing handshake:
+    e2ee_hello -> e2ee_ready -> sealed e2ee_auth -> e2ee_authenticated.
+    It then made an encrypted `status.get` RPC call, which returned
+    runtimeProtocolVersion 3.
+  - CLI: `status`, `repo add`, `terminal create` (a node-pty shell on a
+    pts running the command), `terminal read`, `worktree ps` and
+    `terminal close`.
+  - ps fix: closing a terminal killed its background job with the shim
+    and left it running without it (see above).
+  - Stale lock: after kill -9 of orcad, a direct start was refused. The
+    rc script removed the lock and started.
+  - `orca-ide serve` in the foreground binds 0.0.0.0 by default.
+
+Not tested: aarch64, a real desktop-app client against the server
+(only the scripted client), agent CLIs inside Orca terminals.
+
+
+Open issues
+-----------
+
+- The desktop app on FreeBSD is not ported. That would be a separate,
+  much larger port on devel/electron43; the server is the same code.
+- Unavailable on FreeBSD:
+  - the workspace "Ports" view (upstream scans /proc/net/tcp on Linux
+    and lsof on macOS; a sockstat(1) scanner would be the FreeBSD
+    addition);
+  - per-terminal memory and process limits (systemd scopes on Linux;
+    rctl(8) could do it);
+  - server-side browser panes (they need upstream's Electron app or the
+    agent-browser Rust driver, which has no FreeBSD build);
+  - speech to text (sherpa-onnx);
+  - computer use.
+- The `orca` launcher that orcad writes into <profile>/cli/bin for its
+  terminals runs the CLI without the ps shim. Process-related CLI
+  output from inside Orca terminals may be incomplete. bin/orca-ide is
+  not affected.
+- orcad cannot tell a reused pid from its own after a reboot when it
+  checks profile-state ownership (no FreeBSD process start identity).
+  This is rare, and a restart clears it.
+- FreeBSD's sun_path is 104 bytes, not Linux's 108. A terminal-daemon
+  socket path of 104-107 bytes would fail instead of falling back to
+  /tmp. Only very long profile paths are affected.
+- orcad reports its build as "0.0.0-orcad". Upstream's CLI passes
+  ORCA_VERSION from the slot it deploys. The application version that
+  clients see comes from out/package.json and is correct.
+- The pairing links in the log: the log is 0600 and owned by the
+  service user, and links are only written by `service orca_ide pair`
+  or with orca_ide_pairing=YES.
+- Worth sending upstream: the ps -o fix, a FreeBSD machine and boot
+  identity (kern.hostuuid, kern.boottime), and freebsd in the orcad
+  target list or a "system Node" mode.

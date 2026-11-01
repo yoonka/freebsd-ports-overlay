@@ -40,6 +40,7 @@ update `notes/`, and stop before committing.
 | net/livekit-server | github.com/livekit/livekit | Go modules, CGO off |
 | multimedia/livekit-ingress | github.com/livekit/ingress | Go modules + CGO GStreamer |
 | multimedia/livekit-egress | github.com/livekit/egress | Go modules + CGO GStreamer, optional Chromium |
+| devel/orca-ide | github.com/stablyai/orca releases | server JS from the Linux .deb on www/node24; node-pty and @parcel/watcher built here |
 
 Not ported yet: livekit/rust-sdks (its liblivekit_ffi needs Google's
 libwebrtc, which has no FreeBSD build).
@@ -250,6 +251,31 @@ failure table. In short:
 - egress records audio from Chromium through PulseAudio, so www/chromium
   must be built with its PULSEAUDIO option.
 - The UIDs are livekit 590, livekit-egress 591 and livekit-ingress 592.
+
+### devel/orca-ide
+
+`orca-ide serve` runs Orca's server (orcad) on www/node24, without
+Electron. Desktop apps and browsers pair with it. Upstream releases almost
+daily. `notes/devel-orca-ide.txt` has the details.
+
+1. Run `make find-new-version`. It sets DISTVERSION and the node-pty,
+   @parcel/watcher and node-addon-api versions from the release's
+   pnpm-lock.yaml, and prints the expected hash of upstream's node-pty
+   patch.
+2. Run makesum, then check the node-pty patch hash in distinfo against
+   the hash that was printed.
+3. Run testport. It stops loudly when something moved:
+   - post-extract: the orcad template schema, the version in the .deb,
+     the node-pty version, or the per-platform file list;
+   - the node-pty patch or the addon build;
+   - `check-ps-calls.cjs`: a ps(1) call that `freebsd-compat.cjs` does
+     not rewrite (FreeBSD's ps reads `-o a=,b=` as one column);
+   - check-plist.
+4. Smoke test in a throwaway jail: the log shows "PTY self-test passed",
+   `service orca_ide pair` prints both links, and closing a terminal
+   leaves no background jobs behind.
+
+The orca user is UID/GID 593.
 
 ## Before handing back
 

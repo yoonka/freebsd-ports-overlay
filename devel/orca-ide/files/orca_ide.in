@@ -1,0 +1,156 @@
+#!/bin/sh
+
+# PROVIDE: orca_ide
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following lines to /etc/rc.conf to run Orca's server (orcad):
+#
+# orca_ide_enable (bool):	Set to "YES" to enable. Default: "NO"
+# orca_ide_user (str):		User to run as; agents, git and terminals run
+#				with this user's home, credentials and files.
+#				Default: "orca"
+# orca_ide_bind (str):		Literal IP address to listen on.
+#				Default: "0.0.0.0" (every interface)
+# orca_ide_port (int):		Port. Default: "6768"
+# orca_ide_pairing_address (str): Address clients are told to dial, for
+#				example a Tailscale or LAN address.
+#				Default: "" (the bound address)
+# orca_ide_datadir (str):	Orca's profile directory.
+#				Default: "~${orca_ide_user}/.orca"
+# orca_ide_shell (str):		Shell for terminals. Default: the user's login
+#				shell, or bash, zsh or /bin/sh if that is
+#				nologin
+# orca_ide_path (str):		PATH for orcad, its terminals and agents.
+#				Default: system paths, %%LOCALBASE%% and
+#				~/.local/bin
+# orca_ide_pairing (bool):	Create a pairing link at every start and
+#				write it to the log. Default: "NO"; use
+#				`service orca_ide pair` to pair a client.
+# orca_ide_logfile (str):	Log file. Default: "/var/log/orca_ide.log"
+# orca_ide_flags (str):		Extra orcad options. Default: ""
+#
+# Extra command:
+#   pair	Restart the server with a pairing link and print it.
+#
+# Stopping the service stops orcad but not its terminal daemon, as upstream
+# intends: terminals and the agents in them survive restarts and updates.
+
+. /etc/rc.subr
+
+name=orca_ide
+rcvar=orca_ide_enable
+desc="Orca agent IDE server"
+
+load_rc_config $name
+
+: ${orca_ide_enable:="NO"}
+: ${orca_ide_user:="orca"}
+: ${orca_ide_bind:="0.0.0.0"}
+: ${orca_ide_port:="6768"}
+: ${orca_ide_pairing_address:=""}
+: ${orca_ide_pairing:="NO"}
+: ${orca_ide_logfile:="/var/log/orca_ide.log"}
+: ${orca_ide_flags:=""}
+
+# daemon(8) runs as the user and writes the pid file as the user.
+orca_ide_rundir="/var/run/${name}"
+pidfile="${orca_ide_rundir}/${name}.pid"
+procname="/usr/sbin/daemon"
+command="/usr/sbin/daemon"
+start_precmd="${name}_prestart"
+extra_commands="pair"
+pair_cmd="${name}_pair"
+
+orca_ide_home()
+{
+	getent passwd "${orca_ide_user}" | cut -d: -f6
+}
+
+orca_ide_args()
+{
+	local home shell path pairing
+
+	home=$(orca_ide_home)
+	: ${orca_ide_datadir:="${home}/.orca"}
+
+	shell=${orca_ide_shell}
+	if [ -z "${shell}" ]; then
+		shell=$(getent passwd "${orca_ide_user}" | cut -d: -f7)
+		case "${shell}" in
+		*/nologin|*/false|"")
+			shell=/bin/sh
+			for s in %%LOCALBASE%%/bin/bash %%LOCALBASE%%/bin/zsh; do
+				if [ -x "${s}" ]; then
+					shell=${s}
+					break
+				fi
+			done
+			;;
+		esac
+	fi
+	path=${orca_ide_path:-/sbin:/bin:/usr/sbin:/usr/bin:%%LOCALBASE%%/sbin:%%LOCALBASE%%/bin:${home}/.local/bin}
+
+	pairing=--no-pairing
+	if checkyesno orca_ide_pairing || [ -n "${_orca_ide_pair_now}" ]; then
+		pairing=
+	fi
+
+	# rc.subr starts daemon(8) as orca_ide_user. daemon's own -u cannot be
+	# used: a restarted child would then fail to set its user context.
+	command_args="-f -r -R 10 -P ${pidfile} -o ${orca_ide_logfile} -H \
+	    /usr/bin/env HOME=${home} SHELL=${shell} PATH=${path} \
+	    ORCA_USER_DATA=${orca_ide_datadir} LANG=${LANG:-C.UTF-8} \
+	    %%PREFIX%%/bin/orca-ide serve --bind ${orca_ide_bind} \
+	    --port ${orca_ide_port} \
+	    ${orca_ide_pairing_address:+--pairing-address ${orca_ide_pairing_address}} \
+	    ${pairing} ${orca_ide_flags}"
+}
+
+orca_ide_prestart()
+{
+	local home
+
+	home=$(orca_ide_home)
+	if [ -z "${home}" ]; then
+		err 1 "user ${orca_ide_user} does not exist"
+	fi
+	install -d -o "${orca_ide_user}" -m 0700 "${orca_ide_datadir}"
+	install -d -o "${orca_ide_user}" -m 0755 "${orca_ide_rundir}"
+	# daemon(8) opens the log as the user. It holds pairing links when
+	# pairing is on, so no one else may read it.
+	if [ ! -e "${orca_ide_logfile}" ]; then
+		install -o "${orca_ide_user}" -m 0600 /dev/null "${orca_ide_logfile}"
+	fi
+}
+
+orca_ide_pair()
+{
+	local start lines
+
+	start=$(($(wc -l < "${orca_ide_logfile}" 2>/dev/null || echo 0) + 1))
+	( run_rc_command ${_rc_prefix}stop )
+	(
+		_orca_ide_pair_now=1
+		orca_ide_args
+		run_rc_command ${_rc_prefix}start
+	)
+	echo "Waiting for the pairing link..."
+	for i in $(seq 1 120); do
+		lines=$(tail -n "+${start}" "${orca_ide_logfile}" 2>/dev/null |
+		    grep -E '^(Web client URL|Pairing URL|Pairing unavailable|Pairing guidance): ')
+		case "${lines}" in
+		*"Pairing URL: "*|*"Pairing unavailable: "*)
+			echo "${lines}"
+			echo "The link pairs one client. Run 'service ${name} pair' again for another."
+			return 0
+			;;
+		esac
+		sleep 1
+	done
+	err 1 "no pairing link in ${orca_ide_logfile} after 120 seconds"
+}
+
+orca_ide_args
+
+run_rc_command "$1"

@@ -1,0 +1,113 @@
+#!/bin/sh
+#
+# Assemble the server from upstream's Linux .deb, and lay out the sources of
+# the two native addons the port builds.
+#
+# What is taken from the .deb is upstream's own server package, the "orcad
+# template" that the desktop app deploys to Linux, macOS and Windows hosts
+# (resources/orcad-template), and the browser client (the renderer's web
+# build). Both are plain JavaScript, HTML and assets. The template's
+# per-platform parts live under targets/<platform>/: the node-pty and
+# @parcel/watcher addons, ripgrep, and two marker files that name the Node
+# binary upstream pins. None of them is used. The addons are built in this
+# port, rg comes from textproc/ripgrep, and without the markers orcad runs
+# on www/node24 instead of a pinned Node.
+#
+# Every assumption about the layout is checked, and a mismatch is fatal, so
+# that a release which changes it stops the build instead of producing a
+# package that fails at run time.
+#
+# bsd.port.mk runs this via ${SH} with SCRIPTS_ENV in the environment.
+
+set -e
+
+: "${WRKDIR:?}" "${WRKSRC:?}" "${APPSRC:?}" "${DISTFILES_DIR:?}"
+: "${DISTVERSION:?}" "${NODE_PTY_VERSION:?}" "${PARCEL_WATCHER_VERSION:?}"
+: "${NODE_ADDON_API_VERSION:?}" "${WATCHER_WRKSRC:?}"
+
+fail() {
+	echo "post-extract: $*" >&2
+	exit 1
+}
+
+deb=$DISTFILES_DIR/orca-ide_${DISTVERSION}_amd64.deb
+debdir=$WRKDIR/deb
+resources=opt/Orca/resources
+template=$resources/orcad-template
+renderer=$resources/app.asar.unpacked/out/renderer
+
+# The .deb is an ar(1) archive, which bsdtar reads. The payload's
+# compression is whatever dpkg-deb was told to use, so look it up.
+mkdir -p "$debdir"
+payload=$(tar -tf "$deb" | grep '^data\.tar' || :)
+[ -n "$payload" ] || fail "no data.tar.* member in $deb"
+tar -xf "$deb" -C "$debdir" "$payload"
+tar -xf "$debdir/$payload" -C "$debdir" "./$template" "./$renderer"
+rm -f "$debdir/$payload"
+
+[ -f "$debdir/$template/orcad.js" ] || fail "no orcad.js in $template"
+[ -f "$debdir/$renderer/web-index.html" ] || fail "no web-index.html in $renderer"
+
+# The template manifest's schema: version 4 has the layout described above.
+grep -Eq '"schemaVersion": *4[,}]' "$debdir/$template/orcad-template.json" ||
+    fail "orcad-template.json is not schemaVersion 4; re-check the template layout"
+
+# The release the .deb says it is, and the node-pty its JavaScript belongs
+# to (the patch fetched for the addon is for that version).
+version_of() {
+	sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$1" | head -n 1
+}
+v=$(version_of "$debdir/$template/out/package.json")
+[ "$v" = "$DISTVERSION" ] || fail "out/package.json says $v, expected $DISTVERSION"
+v=$(version_of "$debdir/$template/node_modules/node-pty/package.json")
+[ "$v" = "$NODE_PTY_VERSION" ] ||
+    fail "the .deb ships node-pty $v but NODE_PTY_VERSION is $NODE_PTY_VERSION"
+
+# The only per-platform files the port knows how to replace. A new one is
+# most likely a new native addon, which would need a FreeBSD build too. (The
+# Linux targets' rg is not in the template; the desktop app supplies its own
+# copy when it deploys one.)
+expected='./.runtime-node
+./.server-target
+./node_modules/@parcel/watcher/watcher.node
+./node_modules/node-pty/build/Release/pty.node'
+actual=$(cd "$debdir/$template/targets/linux-x64-glibc" && find . -type f | sort)
+if [ "$actual" != "$expected" ]; then
+	echo "post-extract: the linux-x64-glibc target ships" >&2
+	echo "$actual" >&2
+	fail "instead of the files this port replaces; check what is new"
+fi
+
+# The server: the template without its per-platform parts, its manifest
+# (which only the desktop app reads, to deploy it) and the licences of the
+# ripgrep builds it would have shipped.
+mkdir -p "$APPSRC"
+(cd "$debdir/$template" && tar -cf - --exclude ./targets \
+    --exclude ./orcad-template.json --exclude ./ripgrep .) |
+    (cd "$APPSRC" && tar -xf -)
+
+# The browser client, served by orcad from --web-client-root.
+mkdir -p "$APPSRC/web"
+(cd "$debdir/$renderer" && tar -cf - .) | (cd "$APPSRC/web" && tar -xf -)
+
+rm -rf "$debdir"
+
+# The node-pty sources, which EXTRACT_ONLY already unpacked into WRKSRC,
+# and @parcel/watcher's, both building against the same node-addon-api.
+[ "$(version_of "$WRKSRC/package.json")" = "$NODE_PTY_VERSION" ] ||
+    fail "WRKSRC does not hold node-pty $NODE_PTY_VERSION"
+
+mkdir -p "$WATCHER_WRKSRC"
+tar -xf "$DISTFILES_DIR/watcher-$PARCEL_WATCHER_VERSION.tgz" \
+    -C "$WATCHER_WRKSRC" --strip-components 1
+for d in "$WRKSRC" "$WATCHER_WRKSRC"; do
+	mkdir -p "$d/node_modules/node-addon-api"
+	tar -xf "$DISTFILES_DIR/node-addon-api-$NODE_ADDON_API_VERSION.tgz" \
+	    -C "$d/node_modules/node-addon-api" --strip-components 1
+done
+
+# node-pty's tarball carries upstream's prebuilt macOS and Windows addons;
+# make sure nothing can pick them up instead of the one built here.
+rm -rf "$WRKSRC/prebuilds"
+
+cp "$DISTFILES_DIR/LICENSE" "$WRKDIR/LICENSE"

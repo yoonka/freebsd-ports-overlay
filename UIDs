@@ -4,3 +4,4 @@ oxigraph:*:589:589::0:0:Oxigraph Database:/var/db/oxigraph:/usr/sbin/nologin
 livekit:*:590:590::0:0:LiveKit Server:/nonexistent:/usr/sbin/nologin
 livekit-egress:*:591:591::0:0:LiveKit Egress:/var/db/livekit-egress:/usr/sbin/nologin
 livekit-ingress:*:592:592::0:0:LiveKit Ingress:/nonexistent:/usr/sbin/nologin
+orca:*:593:593::0:0:Orca IDE server:/var/db/orca-ide:/usr/sbin/nologin

@@ -1,0 +1,56 @@
+[
+{ type: install
+  message: <<EOM
+This is Orca's server (orcad, what upstream's `orca serve` runs) for
+FreeBSD. The UI runs elsewhere: in the Orca desktop app on Linux, macOS
+or Windows, or in any web browser. Terminals, agents and repositories
+stay on this machine.
+
+Run it as a service:
+
+  sysrc orca_ide_enable=YES
+  sysrc orca_ide_pairing_address=<address the client dials>
+  service orca_ide start
+  service orca_ide pair
+
+`service orca_ide pair` prints two links:
+
+- "Pairing URL": in the desktop app, open Settings -> Remote Orca
+  Servers -> Add Server and paste it.
+- "Web client URL": open it in a browser on the client machine.
+
+Each link pairs one client; run `service orca_ide pair` again for the
+next. Treat the links like passwords. Paired clients are revoked in
+Settings -> Remote Orca Servers -> Shared Server Access.
+
+Or run it in the foreground as yourself, which prints the same links:
+
+  orca-ide serve --pairing-address <address the client dials>
+
+The server listens on TCP port 6768 (orca_ide_port) on every interface
+(orca_ide_bind). Clients need to reach that port. Keep it on a private
+network path (LAN, Tailscale, WireGuard or an SSH tunnel) and do not
+expose it to the Internet.
+
+The service runs as user "orca" (home %%ORCA_HOME%%). Agents, git and
+terminals run with that user's home, credentials and files. To use
+your own repositories and agent logins, set orca_ide_user to your own
+user instead. Install and log in to the agent CLIs (claude, codex, ...)
+as that user. Orca's CLI is `orca-ide`, for example
+`orca-ide account add --agent claude`. Point it at the service's profile
+with ORCA_USER_DATA when it is not ~/.orca.
+
+`service orca_ide stop` stops the server but, as upstream intends, not
+its terminal daemon. Terminals and running agents survive restarts.
+
+Not available on FreeBSD:
+- the listening-ports view of a workspace;
+- per-terminal memory and process limits (they use systemd on Linux);
+- server-side browser panes (upstream drives them with Electron or a
+  Linux-only helper); pages can still open on the client;
+- speech to text, and computer use (`orca computer`);
+- `orca serve service install` (use the rc script) and self-update
+  (use pkg).
+EOM
+}
+]
