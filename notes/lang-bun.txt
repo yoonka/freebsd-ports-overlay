@@ -1,4 +1,4 @@
-lang/bun: update to 1.4.3, install the official FreeBSD release binaries
+lang/bun: update to 1.4.4, install the official FreeBSD release binaries
 =======================================================================
 
 Base: lang/bun as in ports main at 076733902c86aff6a7e8ef2375fda8bd5db82b0a
@@ -28,11 +28,11 @@ misc/claude-code).
 Changes
 -------
 
-- DISTVERSION 1.4.3, fetched from
-  https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/. The
+- DISTVERSION 1.4.4, fetched from
+  https://github.com/oven-sh/bun/releases/download/bun-v1.4.4/. The
   checksums in distinfo match upstream's SHASUMS256.txt.
 - amd64 installs bun-freebsd-x64-baseline.zip, which runs on any x86-64
-  CPU. In 1.4.3, as in 1.4.2, its binary is byte-identical to
+  CPU. In 1.4.2 to 1.4.4 its binary is byte-identical to
   bun-freebsd-x64.zip's, so there is no option to choose between them
   for now.
 - aarch64 added (bun-freebsd-aarch64.zip).
@@ -54,8 +54,8 @@ Changes
 The binary
 ----------
 
-- NT_FREEBSD_ABI_TAG 1403000 (built on 14.3), symbol versions up to
-  FBSD_1.7, so it runs on every supported release.
+- NT_FREEBSD_ABI_TAG 1404000 (built on 14.4; 1.4.3 was built on 14.3),
+  symbol versions up to FBSD_1.7, so it runs on every supported release.
 - Links only against base libraries: libc, libthr, libm, libc++,
   libcxxrt.
 
@@ -63,16 +63,17 @@ The binary
 Tested
 ------
 
-amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 1.4.2 and 1.4.3:
+amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 1.4.2, 1.4.3 and 1.4.4:
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
   DISABLE_LICENSES);
-- bun --revision prints 1.4.3+c6da4a4d3 (1.4.2+744846f84 before);
+- bun --revision prints 1.4.4+38afee6c8 (1.4.3+c6da4a4d3 and
+  1.4.2+744846f84 before);
 - bun:ffi (dlopen of libc.so.7, getsockopt, procctl), node:net Unix
   sockets, Workers and Bun.plugin() work (checked on 1.4.2; on 1.4.3
-  through the do-test and misc/claude-code);
-- misc/claude-code runs on it (2.1.301 on 1.4.3).
+  and 1.4.4 through the do-test and misc/claude-code);
+- misc/claude-code runs on it (2.1.301 on 1.4.3, 2.1.316 on 1.4.4).
 
 
 Open issues and not tested
