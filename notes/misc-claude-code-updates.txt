@@ -1,15 +1,11 @@
 Keeping misc/claude-code and lang/bun up to date
 ===============================================
 
-Status as of 2026-09-26. A plan, nothing here is implemented yet.
-
-Until now Claude Code on this machine was updated by /root/update-claude.sh,
-which installs Anthropic's Linux binary with npm. The port replaces that:
-every Claude Code release becomes a port update and a package build, and
+Every Claude Code release becomes a port update and a package build, and
 Anthropic's own auto-updater stays off (bin/claude sets
-DISABLE_AUTOUPDATER=1), since it would install the Linux build. This plan
-covers what an update involves, what to watch, and three levels of
-automation.
+DISABLE_AUTOUPDATER=1), since it would install the Linux build. This
+covers what an update involves and what to watch. AGENTS.md at the top
+of the overlay has the short version.
 
 
 How often things change
@@ -36,8 +32,8 @@ A Claude Code update, step by step
    .../claude-code-releases/stable instead. Remove any PORTREVISION.
 2. `make makesum`: fetches the npm tarball (about 108 MB) into DISTDIR
    and rewrites distinfo.
-3. `poudriere testport -j 15rel1 -p feather -z crayon2 -O overlay
-   -O privoverlay misc/claude-code`. Use testport (or bulk -t), not a
+3. `poudriere testport ... misc/claude-code`, with the jail, tree, set
+   and overlays the build uses. Use testport (or bulk -t), not a
    plain bulk: only testport runs stage-qa and check-plist, and
    check-plist is what catches upstream adding or dropping a file with a
    stable name. Verified: with the two .woff2.asset files that 2.1.283
@@ -110,8 +106,8 @@ imports point at the install path. The test used during development:
    Code" in the log.
 
 Alternatively run the same TUI check after `pkg upgrade`, against the
-installed claude, and roll back if it fails: the set has
-KEEP_OLD_PACKAGES=yes, so the previous package is still available.
+installed claude, and roll back if it fails: with KEEP_OLD_PACKAGES=yes
+in poudriere.conf the previous package is still available.
 
 
 A Bun update
@@ -140,74 +136,10 @@ Other things to watch
   Review the diff of that one file before moving the pin.
 - Ports main: misc/claude-code, lang/bun, archivers/unhare, and bug
   298047. Once the maintainers commit their own Bun-based version, drop
-  or rebase the overlay copies. The feather tree is a fixed checkout, so
-  as long as local builds use it, the overlay copies remain the way to
-  get newer versions.
-- Distfiles: every Claude Code release leaves a 108 MB tarball in
-  /usr/ports/distfiles. poudriere distclean compares against ports trees
-  given with -p; try `poudriere distclean -n -a -p feather -p overlay
-  -p privoverlay` (dry run) to see whether it handles the overlays,
-  otherwise delete old claude-code-linux-x64-*.tgz by name.
-
-
-Automation
-----------
-
-Constraints:
-
-- The `overlay` ports tree is the working tree in /home/g (owned by g).
-  Automation must not edit it while there is work in progress there,
-  and git run as root in it needs `su g -c` (or -c safe.directory=).
-- Publish only from that tree. If the repository got a claude-code built
-  from any other copy of the port, the next normal bulk from the working
-  tree, with its older DISTVERSION, would replace it with the older
-  version.
-- testport does not publish anything, so testing can run from anywhere.
-- Poudriere needs root and runs natively (not under the Linuxulator).
-
-Level 1: one command, run by hand. A script (for example
-tools/update-claude-code.sh in the overlay) that does steps 1 to 4 and
-stops at the first failure with the log path, then prints the diff and
-the two commands that publish (commit, bulk). Sketch, not tested:
-
-    #!/bin/sh
-    # update-claude-code.sh [version]
-    set -eu
-    O=/usr/home/g/work-freebsd/freebsd-ports-overlay
-    P=$O/misc/claude-code
-    export PORTSDIR=/usr/local/poudriere/ports/feather
-    export DISTDIR=/usr/ports/distfiles
-    su g -c "git -C $O diff --quiet -- misc/claude-code" ||
-        { echo "misc/claude-code has local changes" >&2; exit 1; }
-    old=$(make -C $P -V DISTVERSION)
-    new=${1:-$(fetch -qo - \
-        https://downloads.claude.ai/claude-code-releases/${CHANNEL:-latest})}
-    [ "$new" != "$old" ] || { echo "up to date ($old)"; exit 0; }
-    sed -i '' -e "s/^DISTVERSION=.*/DISTVERSION=	$new/" \
-        -e '/^PORTREVISION=/d' $P/Makefile
-    make -C $P makesum
-    chown g:g $P/Makefile $P/distinfo
-    poudriere testport -j 15rel1 -p feather -z crayon2 \
-        -O overlay -O privoverlay misc/claude-code
-    # smoke test (see above)
-    su g -c "git -C $O diff --stat -- misc/claude-code"
-    echo "publish: commit, then bulk -f plasma6-claude-pkglist"
-
-Level 2: scheduled checks. A daily cron job (as root, output mailed)
-that checks the Claude Code channel, Bun releases, clawgod's shim and
-ports main, and for a new Claude Code or Bun version runs Level 1 in a
-separate copy of the overlay (a git worktree registered as its own
-poudriere ports tree, so the working tree is untouched). It reports the
-result; publishing stays manual.
-
-Level 3: automatic publishing. When all checks pass and the working tree
-has no changes under misc/claude-code, commit the update there (on the
-branch that is checked out, without pushing), run the bulk, and
-optionally `pkg upgrade -y claude-code` followed by the installed-package
-smoke test, with rollback to the previous package on failure. Pushing to
-GitHub and proposing updates upstream stay manual.
-
-Suggested start: Level 1 now, as the replacement for update-claude.sh;
-Level 2 once the script has handled a few releases. Level 3 only if daily
-manual publishing becomes a burden, and preferably with the stable
-channel, which changes less often.
+  or rebase the overlay copies. As long as builds use an older ports
+  checkout, the overlay copies remain the way to get newer versions.
+- Distfiles: every Claude Code release leaves a tarball of over 100 MB
+  in the distfile cache. poudriere distclean compares against the ports
+  trees given with -p; try it as a dry run (-n) with the base tree and
+  every overlay to see whether it handles the overlays, otherwise delete
+  old claude-code-linux-x64-*.tgz by name.
