@@ -178,7 +178,9 @@ the extracted bundle instead (2.1.283 file names in brackets):
   `prefixArgs:[e],target:e` [chunk-nwecr4zz.js]. The wrapper setting
   itself: `="CLAUDE_CODE_PROCESS_WRAPPER"` [chunk-dkzzjdtt.js].
 - Runner sessions: `execArgs:[]};return{execPath:process.execPath` and
-  `CLAUDE_RUNNER_CLAUDE_BIN:process.execPath` [chunk-3ts0v7st.js].
+  `CLAUDE_RUNNER_CLAUDE_BIN:process.execPath` [chunk-3ts0v7st.js]; by
+  2.1.316 the latter reads `CLAUDE_RUNNER_CLAUDE_BIN:<x>??process.execPath`,
+  so search for `CLAUDE_RUNNER_CLAUDE_BIN:`.
 - Runner background start: `health_port:` [chunk-7fcvmady.js].
 - Runner setup and doctor: `[self-hosted-runner:setup] spawning:`
   [chunk-mbgcnqpq.js], `[self-hosted-runner:doctor] spawning:`

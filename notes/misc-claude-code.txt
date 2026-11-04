@@ -81,7 +81,13 @@ Changes relative to 275119
     windowsProcessCreationTime (Windows only, feature-detected), and
     Bun.ant.posixFsAt (feature-detected; without it the git
     info/exclude writer uses the path-based calls, and the macOS-only
-    "anchor" file backend does not come up).
+    "anchor" file backend does not come up), and since 2.1.317:
+    Bun.ant.withThreadWorkingDirectory (macOS only, feature-detected).
+    Grep and Glob on macOS hold the search directory open with
+    O_NOFOLLOW_ANY and start ripgrep inside it through this call. The
+    flag is a constant that is 0 in the Linux bundle, so the directory
+    is never held and ripgrep starts at the directory's path, as
+    before.
 
 - New files/check-bun-api.js, run in post-install against the staged
   tree: it lists every Bun.* API the bundle references and fails the
@@ -89,8 +95,8 @@ Changes relative to 275119
   the known-absent list. Otherwise a missing API can fail silently; for
   example, without CellSegmenter the TUI just stays blank. It caught
   Bun.FetchSession, new in 2.1.283, Bun.ant.windowsSandboxDeniesArg,
-  new in 2.1.301, and the six Bun.ant APIs above that are new in
-  2.1.316.
+  new in 2.1.301, the six Bun.ant APIs above that are new in 2.1.316,
+  and Bun.ant.withThreadWorkingDirectory, new in 2.1.317.
 
 - files/claude.in runs `bun --no-env-file --config=/dev/null cli`.
   Plain bun loads .env files and bunfig.toml from the current directory,
@@ -139,6 +145,11 @@ Changes relative to 275119
   check-bun-api.js's known-absent list the other five new Bun.ant APIs
   (see above). pkg-plist unchanged. The clawgod pin is still current:
   no commit has touched bun-ant-shim.cjs since it.
+
+- Updated to 2.1.317: check-bun-api.js's known-absent list gained
+  Bun.ant.withThreadWorkingDirectory (see above). pkg-plist and the
+  clawgod pin unchanged. The runner and plugin eval still start their
+  copies of claude from process.execPath, as in 2.1.316.
 
 
 Fixes that also apply to 275119
@@ -189,7 +200,8 @@ amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283 on Bun
 1.4.2 (2.1.301 on Bun 1.4.3: testport and the TUI only; 2.1.316 on Bun
 1.4.4: testport, the TUI, and loginTty, which in a child started
 detached on a fresh pty returns true and makes /dev/tty openable where
-it failed with ENXIO before):
+it failed with ENXIO before; 2.1.317 on Bun 1.4.4: testport and the
+TUI):
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
@@ -246,7 +258,7 @@ Open issues and not tested
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
 - Version skew: the bundle is built against Anthropic's Bun (1.4.4 plus
-  private APIs, as embedded in 2.1.316) and runs here on upstream 1.4.4,
+  private APIs, as embedded in 2.1.317) and runs here on upstream 1.4.4,
   so for now only the private APIs differ. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer

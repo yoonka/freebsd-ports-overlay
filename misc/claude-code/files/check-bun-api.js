@@ -20,6 +20,9 @@ require(path.join(dir, 'bun-ant-freebsd.cjs'));
 // helper (since 2.1.301) and the folder security and process list helpers
 // (since 2.1.316) on Windows only. posixFsAt (since 2.1.316) is checked for
 // before use and the path-based calls are used without it.
+// withThreadWorkingDirectory (since 2.1.317) starts ripgrep inside a directory
+// held open with O_NOFOLLOW_ANY, which is macOS only (the constant is 0 in this
+// bundle, so the directory is never held); it is checked for before use too.
 const absent = new Set([
 	'FetchSession',
 	'ant.memoryPressureLevel',
@@ -29,6 +32,7 @@ const absent = new Set([
 	'ant.windowsProcessCreationTime',
 	'ant.windowsProcessList',
 	'ant.windowsSandboxDeniesArg',
+	'ant.withThreadWorkingDirectory',
 	'unsafe.setJITPolicy',
 ]);
 
