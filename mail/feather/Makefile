@@ -1,6 +1,6 @@
 PORTNAME=	feather
 DISTVERSIONPREFIX=	v
-DISTVERSION=	1.1.1
+DISTVERSION=	1.1.2
 CATEGORIES=	mail
 
 MAINTAINER=	nguthiruedwin@gmail.com
@@ -66,7 +66,7 @@ FEATHER_SPOOLDIR=	/var/spool/feather
 # per-build cache restored from the prefetched deps archive; MIX_ENV=prod so we
 # assemble the production release. FEATHER_VERSION is how upstream's release
 # CI stamps the tag into the release; without it mix.exs falls back to the
-# VERSION file, which upstream does not bump (it reads 1.0.102 at v1.1.1).
+# VERSION file, which upstream does not bump (it reads 1.0.102 at v1.1.2).
 _MIX_HOME=	${WRKDIR}/.mix
 MIX_ENV=	MIX_ENV=prod \
 		FEATHER_VERSION=${DISTVERSION} \
