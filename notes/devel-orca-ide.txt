@@ -59,7 +59,11 @@ Distfiles, all in distinfo, under DIST_SUBDIR orca-ide/<version>:
   the node-pty JavaScript in the .deb already has it applied, so the
   addon has to be built from the same patched source. The file is
   applied as PATCHFILES. pnpm records a patch's SHA-256 in the lockfile
-  (`patch_hash`), which find-new-version uses to cross-check it.
+  (`patch_hash`), which find-new-version uses to cross-check it. The
+  patch changes between releases even when node-pty does not: since
+  1.4.247 it adds foregroundProcessGroup(), tcgetpgrp(3) on the master,
+  which orcad uses to find a terminal's foreground job. It is portable
+  and works on FreeBSD as is.
 
 scripts/post-extract:
 
@@ -116,9 +120,9 @@ FreeBSD fixes
    - every column gets its own -o;
    - -e becomes -A.
    This covers argument vectors and plain `ps ...` command strings.
-   The 1.4.245 bundles hold 51 column lists of this shape in 11
-   files, in minified code that changes with every release. Patching
-   each site would mean as many fragile patterns.
+   The 1.4.247 bundles hold 55 column lists of this shape (51 in
+   1.4.245), in minified code that changes with every release.
+   Patching each site would mean as many fragile patterns.
 
    bin/orca-ide loads the shim for orcad and for the CLI. orcad's
    terminal daemon inherits process.execArgv
@@ -233,6 +237,26 @@ enough; keep the desktop clients on a close version.
 
 Tested
 ------
+
+With 1.4.247, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass. check-ps-calls.cjs: 55 ps
+  column lists, all rewritten.
+- In a throwaway vnet jail without internet access, from the package
+  plus its run dependencies:
+  - service start. orcad reports "Orca server ready" and "Terminal
+    daemon: live -- PTY self-test passed (pty-spawn: healthy)". It
+    also logs "[agent-state-rules] download failed": orcad fetches an
+    optional agent-state-rules.json from upstream's GitHub releases
+    (1.4.245 did too) and carries on without it.
+  - `service orca_ide pair` prints both links. The web client and its
+    assets are served over HTTP.
+  - CLI: `status`, `repo add`, `terminal create`, `terminal read` and
+    `terminal close`. Closing a terminal killed the background job its
+    shell had started.
+  - node-pty's foregroundProcessGroup() returns the pty's foreground
+    process group.
 
 With 1.4.245, on FreeBSD 15.1 amd64 with www/node24 24.21.0:
 
