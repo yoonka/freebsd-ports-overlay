@@ -62,6 +62,12 @@ cpu_cost:
   url_cpu_cost: 2.0
   # min_idle_ratio: 0.3
 
-# If true, WHIP sessions with transcoding bypassed are handled by the SFU
-# directly.
-# whip_proxy_enabled: false
+# URL pull from udp:// URLs (unicast or multicast). Off by default: for such a
+# URL the handler binds the local address and port the API caller puts in it,
+# and accepts unauthenticated traffic there. Enable it only if both the
+# callers allowed to create ingresses and the network are trusted (see the
+# security note in upstream's README).
+# enable_udp_url_pull: false
+# Interface to join multicast groups on for udp:// URLs; empty lets the OS
+# decide.
+# multicast_interface: ""

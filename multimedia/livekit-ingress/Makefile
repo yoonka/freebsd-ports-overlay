@@ -1,6 +1,6 @@
 PORTNAME=	livekit-ingress
 DISTVERSIONPREFIX=	v
-DISTVERSION=	1.5.0
+DISTVERSION=	1.6.0
 CATEGORIES=	multimedia net
 
 MAINTAINER=	ports@FreeBSD.org
@@ -10,7 +10,7 @@ WWW=		https://github.com/livekit/ingress
 LICENSE=	APACHE20
 LICENSE_FILE=	${WRKSRC}/LICENSE
 
-USES=		gettext-runtime gnome go:1.25+,modules gstreamer pkgconfig
+USES=		gettext-runtime gnome go:1.26+,modules gstreamer pkgconfig
 USE_GNOME=	glib20
 # GStreamer elements created in pkg/media or auto-plugged by decodebin3 for
 # the inputs upstream accepts:
@@ -18,7 +18,7 @@ USE_GNOME=	glib20
 #	videoconvert videoscale videorate audioconvert audioresample
 #  bad:   libgstmpegts (linked by go-gst), h264parse h265parse tsdemux
 #  good:  flvdemux qtdemux matroskademux id3demux aacparse mpegaudioparse
-#	hlsdemux2
+#	hlsdemux2 udpsrc (URL pull of udp://, off unless enable_udp_url_pull)
 #  libav: avdec_h264 avdec_h265 avdec_aac avdec_mp3
 #  ogg/vorbis: oggdemux vorbisdec (URL pull of audio/ogg)
 #  opus:  opusenc opusdec
