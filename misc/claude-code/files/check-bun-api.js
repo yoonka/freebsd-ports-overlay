@@ -23,8 +23,12 @@ require(path.join(dir, 'bun-ant-freebsd.cjs'));
 // withThreadWorkingDirectory (since 2.1.317) starts ripgrep inside a directory
 // held open with O_NOFOLLOW_ANY, which is macOS only (the constant is 0 in this
 // bundle, so the directory is never held); it is checked for before use too.
+// isVmContextGlobal (since 2.1.319) is asked, through ?.(), only about an
+// object vm.isContext() does not recognise as a context's global; stock Bun's
+// isContext() does, which is checked below.
 const absent = new Set([
 	'FetchSession',
+	'ant.isVmContextGlobal',
 	'ant.memoryPressureLevel',
 	'ant.posixFsAt',
 	'ant.ttyName',
@@ -59,5 +63,22 @@ if (missing.length > 0) {
 	for (const name of missing)
 		console.error(`\tBun.${name}`);
 	process.exit(1);
+}
+
+// The sandbox of the workflow and JavaScript tools (src/utils/vmHardening.ts)
+// refuses to create a node:vm context unless vm.isContext() or
+// Bun.ant.isVmContextGlobal recognises the context's global object, and its
+// checks for values leaving the sandbox rely on the same test. Node's
+// isContext() does not recognise that object; Bun's does, which is what makes
+// isVmContextGlobal unnecessary here.
+if (used.has('ant.isVmContextGlobal')) {
+	const vm = require('vm');
+
+	if (!vm.isContext(vm.runInContext('this', vm.createContext({})))) {
+		console.error(`Bun ${Bun.version}: vm.isContext() no longer ` +
+		    'recognises a context\'s global, so the bundle needs ' +
+		    'Bun.ant.isVmContextGlobal');
+		process.exit(1);
+	}
 }
 console.log(`===>   Bun ${Bun.version} has the ${used.size} Bun APIs the bundle uses`);

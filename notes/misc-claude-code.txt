@@ -87,7 +87,14 @@ Changes relative to 275119
     O_NOFOLLOW_ANY and start ripgrep inside it through this call. The
     flag is a constant that is 0 in the Linux bundle, so the directory
     is never held and ripgrep starts at the directory's path, as
-    before.
+    before. And since 2.1.319: Bun.ant.isVmContextGlobal (called with
+    ?.(), and not needed on stock Bun). The workflow and JavaScript
+    tools run scripts in node:vm contexts (src/utils/vmHardening.ts).
+    That code refuses to create a context unless vm.isContext() or
+    this call recognises the context's global object, and its checks
+    on values leaving the sandbox use the same test. Node's isContext()
+    does not recognise that object; Bun's does, so the call is never
+    reached here.
 
 - New files/check-bun-api.js, run in post-install against the staged
   tree: it lists every Bun.* API the bundle references and fails the
@@ -96,7 +103,12 @@ Changes relative to 275119
   example, without CellSegmenter the TUI just stays blank. It caught
   Bun.FetchSession, new in 2.1.283, Bun.ant.windowsSandboxDeniesArg,
   new in 2.1.301, the six Bun.ant APIs above that are new in 2.1.316,
-  and Bun.ant.withThreadWorkingDirectory, new in 2.1.317.
+  Bun.ant.withThreadWorkingDirectory, new in 2.1.317, and
+  Bun.ant.isVmContextGlobal, new in 2.1.319. While the bundle uses
+  isVmContextGlobal, it also fails the build if vm.isContext() stops
+  recognising a context's global object: without one or the other,
+  the workflow and JavaScript tools would fail at run time with
+  "Refusing to make a node:vm context".
 
 - files/claude.in runs `bun --no-env-file --config=/dev/null cli`.
   Plain bun loads .env files and bunfig.toml from the current directory,
@@ -151,6 +163,12 @@ Changes relative to 275119
   clawgod pin unchanged. The runner and plugin eval still start their
   copies of claude from process.execPath, as in 2.1.316.
 
+- Updated to 2.1.319: check-bun-api.js's known-absent list gained
+  Bun.ant.isVmContextGlobal, and the script checks vm.isContext() for
+  it (see above). pkg-plist and the clawgod pin unchanged. The runner
+  and plugin eval still start their copies of claude from
+  process.execPath.
+
 
 Fixes that also apply to 275119
 -------------------------------
@@ -201,7 +219,9 @@ amd64, FreeBSD 15.1-RELEASE, poudriere 3.4.8, 2.1.282 and 2.1.283 on Bun
 1.4.4: testport, the TUI, and loginTty, which in a child started
 detached on a fresh pty returns true and makes /dev/tty openable where
 it failed with ENXIO before; 2.1.317 on Bun 1.4.4: testport and the
-TUI):
+TUI; 2.1.319 on Bun 1.4.4: testport, the TUI, and the bundle's own
+vm sandbox self-test, context creation and context-global check, run
+on stock Bun without isVmContextGlobal):
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
@@ -258,7 +278,7 @@ Open issues and not tested
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
 - Version skew: the bundle is built against Anthropic's Bun (1.4.4 plus
-  private APIs, as embedded in 2.1.317) and runs here on upstream 1.4.4,
+  private APIs, as embedded in 2.1.319) and runs here on upstream 1.4.4,
   so for now only the private APIs differ. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer
