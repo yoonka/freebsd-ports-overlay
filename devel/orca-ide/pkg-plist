@@ -1,4 +1,5 @@
 bin/orca-ide
+lib/orca-ide/claude-conversation-fork-worker-entry.js
 lib/orca-ide/claude-profile-setup-worker-entry.js
 lib/orca-ide/command-path-directory-worker-entry.js
 lib/orca-ide/computer-sidecar.js

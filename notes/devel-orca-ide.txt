@@ -120,8 +120,9 @@ FreeBSD fixes
    - every column gets its own -o;
    - -e becomes -A.
    This covers argument vectors and plain `ps ...` command strings.
-   The 1.4.247 bundles hold 55 column lists of this shape (51 in
-   1.4.245), in minified code that changes with every release.
+   The 1.4.253 bundles hold 56 column lists of this shape (55 in
+   1.4.247, 51 in 1.4.245), in minified code that changes with every
+   release.
    Patching each site would mean as many fragile patterns.
 
    bin/orca-ide loads the shim for orcad and for the CLI. orcad's
@@ -237,6 +238,22 @@ enough; keep the desktop clients on a close version.
 
 Tested
 ------
+
+With 1.4.253, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass. check-ps-calls.cjs: 56 ps
+  column lists, all rewritten. pkg-plist gained
+  claude-conversation-fork-worker-entry.js, a new worker of the server
+  (plain JavaScript; its ps calls are among the 56).
+- In poudriere's own jail, left running by testport -I with the package
+  and its run dependencies installed, orcad bound to 127.0.0.1:
+  - service start: "Orca server ready" and "Terminal daemon: live --
+    PTY self-test passed (pty-spawn: healthy)".
+  - `service orca_ide pair` prints both links.
+  - CLI: `status`, `repo add`, `terminal create` with a command that
+    starts a background job, `terminal read` and `terminal close`.
+    Closing the terminal killed the background job.
 
 With 1.4.247, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
 
