@@ -120,9 +120,9 @@ FreeBSD fixes
    - every column gets its own -o;
    - -e becomes -A.
    This covers argument vectors and plain `ps ...` command strings.
-   The 1.4.253 bundles hold 56 column lists of this shape (55 in
-   1.4.247, 51 in 1.4.245), in minified code that changes with every
-   release.
+   The 1.4.258 bundles hold 59 column lists of this shape (56 in
+   1.4.253, 55 in 1.4.247, 51 in 1.4.245), in minified code that
+   changes with every release.
    Patching each site would mean as many fragile patterns.
 
    bin/orca-ide loads the shim for orcad and for the CLI. orcad's
@@ -226,7 +226,8 @@ How to update
      build;
    - check-ps-calls.cjs: new ways of calling ps;
    - check-plist: a new or removed server file. Only the web client and
-     the hashed mobile assets are listed dynamically.
+     the mobile web bundle's hashed assets and catalogs are listed
+     dynamically.
 4. Smoke test in a jail (see below): the readiness lines must report
    "PTY self-test passed", `service orca_ide pair` must print both
    links, and a terminal close must not leave its background jobs
@@ -238,6 +239,27 @@ enough; keep the desktop clients on a close version.
 
 Tested
 ------
+
+With 1.4.258, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass. check-ps-calls.cjs: 59 ps
+  column lists, all rewritten. pkg-plist gained
+  session-search-worker-entry.js and out/mobile-web/index.html.br;
+  the mobile web bundle's message catalogs
+  (out/mobile-web/catalogs/<sha256>.json) are listed in post-install,
+  like its assets.
+- The new worker serves full-text search of agent sessions (`orca-ide
+  search`). It is plain JavaScript on node:sqlite (FTS5), which
+  www/node24 provides; no native module. Search is off until a paired
+  client gives consent, so `search` answered "unavailable: disabled";
+  the worker itself was only checked to parse (node --check), and
+  node:sqlite with FTS5 to work in the same jail.
+- In poudriere's own jail, left running by testport -I, orcad bound to
+  127.0.0.1: "Orca server ready" and "PTY self-test passed";
+  `service orca_ide pair` prints both links; `status`, `repo add`,
+  `terminal create` with a command that starts a background job,
+  `terminal read` and `terminal close`, which killed the job.
 
 With 1.4.253, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
 

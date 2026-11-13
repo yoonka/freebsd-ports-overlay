@@ -33,6 +33,7 @@ lib/orca-ide/orcad-server.js
 lib/orca-ide/orcad.js
 lib/orca-ide/out/cli/index.js
 lib/orca-ide/out/mobile-web/index.html
+lib/orca-ide/out/mobile-web/index.html.br
 lib/orca-ide/out/mobile-web/manifest.json
 lib/orca-ide/out/package.json
 lib/orca-ide/parcel-watcher-process-entry.js
@@ -41,6 +42,7 @@ lib/orca-ide/profile-state-backup-worker-entry.js
 lib/orca-ide/profile-state-writer-worker-entry.js
 lib/orca-ide/ripgrep/freebsd-%%NODE_ARCH%%/rg
 lib/orca-ide/session-scanner-service-entry.js
+lib/orca-ide/session-search-worker-entry.js
 lib/orca-ide/stt-worker.js
 lib/orca-ide/worker-thread-child-process-entry.js
 @dir(orca,orca,0750) /var/db/orca-ide

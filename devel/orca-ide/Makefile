@@ -1,5 +1,5 @@
 PORTNAME=	orca-ide
-DISTVERSION=	1.4.253
+DISTVERSION=	1.4.258
 CATEGORIES=	devel
 MASTER_SITES=	https://github.com/stablyai/orca/releases/download/v${DISTVERSION}/:deb \
 		https://registry.npmjs.org/node-pty/-/:pty \
@@ -106,9 +106,11 @@ do-install:
 	@${MKDIR} ${STAGEDIR}${ORCA_HOME}
 
 post-install:
-	# The web client and the mobile web bundle name their assets by content
-	# hash, so they are listed here instead of in pkg-plist.
+	# The web client and the mobile web bundle name their assets and
+	# message catalogs by content hash, so they are listed here instead of
+	# in pkg-plist.
 	cd ${STAGEDIR}${PREFIX} && ${FIND} -s lib/${PORTNAME}/web \
-		lib/${PORTNAME}/out/mobile-web/assets -type f >> ${TMPPLIST}
+		lib/${PORTNAME}/out/mobile-web/assets \
+		lib/${PORTNAME}/out/mobile-web/catalogs -type f >> ${TMPPLIST}
 
 .include <bsd.port.mk>
