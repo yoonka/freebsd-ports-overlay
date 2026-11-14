@@ -45,4 +45,4 @@ lib/orca-ide/session-scanner-service-entry.js
 lib/orca-ide/session-search-worker-entry.js
 lib/orca-ide/stt-worker.js
 lib/orca-ide/worker-thread-child-process-entry.js
-@dir(orca,orca,0750) /var/db/orca-ide
+@dir(orca,orca,0750) %%ORCA_HOME%%

@@ -40,6 +40,10 @@ as that user. Orca's CLI is `orca-ide`, for example
 `orca-ide account add --agent claude`. Point it at the service's profile
 with ORCA_USER_DATA when it is not ~/.orca.
 
+The profile holds the server's identity and its paired clients, and it
+is in the service user's home. After changing orca_ide_user, restart the
+service and pair the clients again.
+
 `service orca_ide stop` stops the server but, as upstream intends, not
 its terminal daemon. Terminals and running agents survive restarts.
 
@@ -51,6 +55,19 @@ Not available on FreeBSD:
 - speech to text, and computer use (`orca computer`);
 - `orca serve service install` (use the rc script) and self-update
   (use pkg).
+EOM
+}
+{ type: upgrade
+  maximum_version: "1.4.258"
+  message: <<EOM
+The rc script now runs daemon(8) as root and orcad as orca_ide_user, and
+keeps its pid file in /var/run/orca_ide.pid. If the service was running
+during this upgrade, the new script cannot see it. Stop it with
+
+  pkill -F /var/run/orca_ide/orca_ide.pid
+
+and run `service orca_ide start`. The log, /var/log/orca_ide.log, is now
+owned by root.
 EOM
 }
 ]

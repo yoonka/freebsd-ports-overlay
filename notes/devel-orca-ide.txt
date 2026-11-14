@@ -4,9 +4,11 @@ devel/orca-ide: Orca's server (`orca serve`) on FreeBSD's node
 New port, draft. It packages the server half of Orca
 (https://github.com/stablyai/orca, MIT), an Electron "agent IDE" that
 runs coding agents such as Claude Code, Codex and OpenCode in git
-worktrees and terminals. The desktop app is not ported. The server keeps
-the projects, worktrees, terminals and agent sessions. The UI is
-provided by paired clients:
+worktrees and terminals. The desktop app is not ported yet; this port
+is where it is meant to go, named after upstream's Linux desktop
+package. devel/orca-server packages upstream's server-only release,
+without the browser client. The server keeps the projects, worktrees,
+terminals and agent sessions. The UI is provided by paired clients:
 
 - the Orca desktop app on Linux, macOS or Windows (Settings -> Remote
   Orca Servers -> Add Server);
@@ -173,25 +175,52 @@ Service
 -------
 
 The rc script orca_ide runs `orca-ide serve` under daemon(8) with
-restart (-r -R 10), as orca_ide_user. Its rcvars are:
+restart (-r -R 10). daemon(8) runs as root and starts orcad as
+orca_ide_user (daemon -u). Its rcvars are:
 
+- orca_ide_user (orca);
 - orca_ide_bind (0.0.0.0, like upstream's `orca serve`) and
   orca_ide_port (6768);
 - orca_ide_pairing_address;
 - orca_ide_datadir (~user/.orca, orcad's default);
 - orca_ide_shell and orca_ide_path;
 - orca_ide_pairing (NO) and orca_ide_flags;
-- orca_ide_logfile (/var/log/orca_ide.log, 0600, owned by the user).
+- orca_ide_logfile (/var/log/orca_ide.log, 0600, owned by root).
 
-User and group: orca, 593 (UIDs, GIDs), home /var/db/orca-ide.
+User and group: orca, 593 (UIDs, GIDs), home /var/db/orca, shared with
+devel/orca-server. The two ports conflict (CONFLICTS_INSTALL): both
+install bin/orca-ide and serve on the same port.
 
 Notes on the implementation:
-- daemon(8)'s own -u is not used. A restarted child calls
-  setusercontext() again after the supervisor has dropped privileges,
-  and fails with "failed to set user environment". rc.subr's
-  orca_ide_user is used instead.
-- For the same reason the pid file lives in /var/run/orca_ide/, owned
-  by the user.
+- The script hides orca_ide_user from rc.subr (it copies it and unsets
+  it). With ${name}_user set, rc.subr runs the command through
+  `su -m <user>`, and it also sends the stop signal as that user. That
+  had two effects in 1.4.258 and earlier, which used rc.subr's user:
+  - after orca_ide_user was changed in rc.conf while the server ran,
+    `service orca_ide stop` ran `kill` as the new user, could not
+    signal the old server, and left it running;
+  - daemon(8), running as the user, opened the log itself, so a log
+    left by the previous user (0600) made every start fail with
+    "daemon: open: Permission denied".
+- daemon(8)'s -u needs root: it calls setusercontext() in each child
+  after fork, and the supervisor keeps its privileges, so a restarted
+  child gets the user context again. Checked with a child that exits
+  every second, on 15.1 and with 14.3's daemon(8). -u only fails when
+  daemon(8) is already running as the user, which is what rc.subr's
+  user would do.
+- The pid file (/var/run/orca_ide.pid) and the log are root's. root
+  acts on the pid file at stop, so the service user must not be able to
+  write it.
+- prestart makes the log root's and 0600 on every start, so a log left
+  to the service user by an older version stops being readable by it.
+- Upgrading from 1.4.258 or earlier while the service runs: the new
+  script looks for the pid file in its new place and cannot see the old
+  server. pkg-message (type upgrade) says to stop it with
+  `pkill -F /var/run/orca_ide/orca_ide.pid`. The old pid file is not
+  used as a fallback, because the service user could write it.
+- A change of user is a change of profile (~user/.orca), and with it of
+  the server's identity and paired clients: clients pair again.
+  pkg-message and the rc script say so.
 
 Pairing:
 - Like upstream's service, it starts with --no-pairing, so pairing
@@ -201,7 +230,10 @@ Pairing:
   "Web client URL" (for a browser) from the log.
 
 Stopping the service stops orcad, not its terminal daemon. Upstream
-designs it that way, so that terminals and agents survive restarts.
+designs it that way, so that terminals and agents survive restarts: the
+systemd unit that `orca serve service install` writes on Linux has
+KillMode=process. With no terminals open, the terminal daemon exits on
+its own shortly after orcad ("shutdown", reason "idle", in its log).
 
 `orca-ide serve` runs the same server in the foreground and accepts
 orcad's options: --bind, --port, --pairing-address, --no-pairing,
@@ -239,6 +271,22 @@ enough; keep the desktop clients on a close version.
 
 Tested
 ------
+
+With 1.4.258_1 (the rc script on daemon -u), on FreeBSD 15.1 amd64:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass.
+- In poudriere's own jail, left running by testport -I, orcad bound to
+  127.0.0.1:
+  - service start: daemon(8) runs as root, orcad and its terminal
+    daemon as orca; /var/run/orca_ide.pid and the log are root's, 0600.
+  - orca_ide_user changed to another user while the server ran, then
+    `service orca_ide restart`: the old server stopped, the new one
+    started as the new user with a new profile in its home.
+  - `service orca_ide pair` prints both links.
+  - kill -9 of orcad: daemon(8) restarted it as the user after 10 s,
+    and bin/orca-ide removed the stale lock.
+  - `service orca_ide stop` left no orcad behind.
 
 With 1.4.258, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
 
@@ -327,8 +375,10 @@ Not tested: aarch64, a real desktop-app client against the server
 Open issues
 -----------
 
-- The desktop app on FreeBSD is not ported. That would be a separate,
-  much larger port on devel/electron43; the server is the same code.
+- The desktop app on FreeBSD is not ported. It is planned for this
+  port, on devel/electron43 the way editors/vscode builds; the server is
+  the same code. Until then, devel/orca-server is the leaner choice for
+  a server that only desktop apps connect to.
 - Unavailable on FreeBSD:
   - the workspace "Ports" view (upstream scans /proc/net/tcp on Linux
     and lsof on macOS; a sockstat(1) scanner would be the FreeBSD
@@ -352,9 +402,9 @@ Open issues
 - orcad reports its build as "0.0.0-orcad". Upstream's CLI passes
   ORCA_VERSION from the slot it deploys. The application version that
   clients see comes from out/package.json and is correct.
-- The pairing links in the log: the log is 0600 and owned by the
-  service user, and links are only written by `service orca_ide pair`
-  or with orca_ide_pairing=YES.
+- The pairing links in the log: the log is 0600 and owned by root, and
+  links are only written by `service orca_ide pair` or with
+  orca_ide_pairing=YES.
 - Worth sending upstream: the ps -o fix, a FreeBSD machine and boot
   identity (kern.hostuuid, kern.boottime), and freebsd in the orcad
   target list or a "system Node" mode.

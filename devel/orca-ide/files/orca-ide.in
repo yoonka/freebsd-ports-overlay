@@ -53,8 +53,8 @@ case "$1 $2" in
 "serve restore"*)
 	;;
 "serve service"*)
-	echo "orca-ide: use the rc(8) script instead: sysrc orca_ide_enable=YES;" \
-	    "service orca_ide start" >&2
+	echo "orca-ide: use the rc(8) script instead: sysrc %%RCNAME%%_enable=YES;" \
+	    "service %%RCNAME%% start" >&2
 	exit 64
 	;;
 "serve "*)
@@ -65,10 +65,15 @@ case "$1 $2" in
 		--bind) bind= ;;
 		esac
 	done
+	# The browser client, when the package installs it.
+	web=
+	if [ -f "${APPDIR}/web/web-index.html" ]; then
+		web=${APPDIR}/web
+	fi
 	mkdir -p "${ORCA_USER_DATA}" || exit 1
 	clear_stale_lock
 	exec "${NODE}" --require "${APPDIR}/freebsd-compat.cjs" \
-	    "${APPDIR}/orcad.js" --web-client-root "${APPDIR}/web" \
+	    "${APPDIR}/orcad.js" ${web:+--web-client-root "${web}"} \
 	    ${bind:+--bind 0.0.0.0} "$@"
 	;;
 esac

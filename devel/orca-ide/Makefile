@@ -1,5 +1,6 @@
 PORTNAME=	orca-ide
 DISTVERSION=	1.4.258
+PORTREVISION=	1
 CATEGORIES=	devel
 MASTER_SITES=	https://github.com/stablyai/orca/releases/download/v${DISTVERSION}/:deb \
 		https://registry.npmjs.org/node-pty/-/:pty \
@@ -36,6 +37,9 @@ RUN_DEPENDS=	git:devel/git \
 USES=		gmake nodejs:24,build,run python:build
 USE_RC_SUBR=	orca_ide
 
+# Both install bin/orca-ide and serve on the same port.
+CONFLICTS_INSTALL=	orca-server
+
 # The JavaScript comes from the amd64 .deb on every architecture: it is the
 # same everywhere, and the two native addons are built here.
 ONLY_FOR_ARCHS=		aarch64 amd64
@@ -59,7 +63,7 @@ NODE_ARCH=	${ARCH:S/amd64/x64/:S/aarch64/arm64/}
 USERS=		orca
 GROUPS=		orca
 # The orca user's home, from UIDs.
-ORCA_HOME=	/var/db/orca-ide
+ORCA_HOME=	/var/db/orca
 UID_FILES+=	${.CURDIR:H:H}/UIDs
 GID_FILES+=	${.CURDIR:H:H}/GIDs
 
@@ -70,8 +74,9 @@ SCRIPTS_ENV+=	APPSRC=${APPSRC} DISTFILES_DIR=${_DISTDIR} \
 		WATCHER_WRKSRC=${WATCHER_WRKSRC}
 
 SUB_FILES=	orca-ide pkg-message
-SUB_LIST=	APPDIR=${APPDIR} NODE=${LOCALBASE}/bin/node ORCA_HOME=${ORCA_HOME}
-PLIST_SUB=	NODE_ARCH=${NODE_ARCH}
+SUB_LIST=	APPDIR=${APPDIR} NODE=${LOCALBASE}/bin/node ORCA_HOME=${ORCA_HOME} \
+		RCNAME=${USE_RC_SUBR}
+PLIST_SUB=	NODE_ARCH=${NODE_ARCH} ORCA_HOME=${ORCA_HOME}
 
 # Updates DISTVERSION and the native module versions to the latest release.
 find-new-version:
