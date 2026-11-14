@@ -1,0 +1,14 @@
+Orca is an IDE for running coding agents such as Claude Code, Codex and
+OpenCode in parallel, each in its own git worktree and terminals, with
+review, editing and task tools around them.
+
+This port installs Orca's server, orcad, which upstream runs for
+`orca serve`: it keeps projects, worktrees, terminals and agent sessions
+on this machine, and paired clients provide the UI. Clients are the Orca
+desktop app on Linux, macOS or Windows and the Orca mobile app.
+
+It is upstream's server-only release: the server's JavaScript comes from
+upstream's Linux server tarball and runs on www/node24; its native
+addons, node-pty and @parcel/watcher, are built from source. The browser
+client, which comes only with upstream's desktop app, is not included;
+devel/orca-ide has it.

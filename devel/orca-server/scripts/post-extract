@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# Assemble the server from upstream's server-only Linux tarball, and lay out
+# the sources of the two native addons the port builds.
+#
+# The tarball holds orcad/, upstream's server package: plain JavaScript and
+# assets, the same files the desktop app deploys to remote hosts, merged
+# with the parts for one Linux target: the node-pty and @parcel/watcher
+# addons, a ripgrep binary, and three marker files that name the Node binary
+# upstream pins and the build. Beside it are that pinned Node (runtimes/),
+# a launcher (bin/orca-ide) and the selection entry of the desktop CLI
+# (out/main/). None of those is used. The addons are built in this port, rg
+# comes from textproc/ripgrep, the launcher is the port's own, and without
+# the markers orcad runs on www/node24 instead of a pinned Node.
+#
+# Every assumption about the layout is checked, and a mismatch is fatal, so
+# that a release which changes it stops the build instead of producing a
+# package that fails at run time.
+#
+# bsd.port.mk runs this via ${SH} with SCRIPTS_ENV in the environment.
+
+set -e
+
+: "${WRKDIR:?}" "${WRKSRC:?}" "${APPSRC:?}" "${DISTFILES_DIR:?}"
+: "${DISTVERSION:?}" "${NODE_PTY_VERSION:?}" "${PARCEL_WATCHER_VERSION:?}"
+: "${NODE_ADDON_API_VERSION:?}" "${WATCHER_WRKSRC:?}" "${SERVER_TARBALL:?}"
+
+fail() {
+	echo "post-extract: $*" >&2
+	exit 1
+}
+
+tarball=$DISTFILES_DIR/$SERVER_TARBALL
+top=orca-server-$DISTVERSION-linux-x64
+srvdir=$WRKDIR/server
+
+# Everything but the pinned Node, which is most of the tarball.
+mkdir -p "$srvdir"
+tar -xf "$tarball" -C "$srvdir" "$top/VERSION" "$top/LICENSE" "$top/orcad"
+orcad=$srvdir/$top/orcad
+[ -f "$orcad/orcad.js" ] || fail "no $top/orcad/orcad.js in $SERVER_TARBALL"
+
+# The release and the target the tarball says it is, e.g.
+#   orca 1.4.258
+#   target linux-x64-glibc
+grep -qx "orca $DISTVERSION" "$srvdir/$top/VERSION" ||
+    fail "$top/VERSION does not say orca $DISTVERSION"
+grep -qx "target linux-x64-glibc" "$srvdir/$top/VERSION" ||
+    fail "$top/VERSION does not name the linux-x64-glibc target"
+
+# The release out/package.json says it is, and the node-pty its JavaScript
+# belongs to (the patch fetched for the addon is for that version).
+version_of() {
+	sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$1" | head -n 1
+}
+v=$(version_of "$orcad/out/package.json")
+[ "$v" = "$DISTVERSION" ] || fail "out/package.json says $v, expected $DISTVERSION"
+v=$(version_of "$orcad/node_modules/node-pty/package.json")
+[ "$v" = "$NODE_PTY_VERSION" ] ||
+    fail "the tarball ships node-pty $v but NODE_PTY_VERSION is $NODE_PTY_VERSION"
+
+# The only binaries the port knows how to replace. A new one is most likely
+# a new native addon, which would need a FreeBSD build too.
+expected='./node_modules/@parcel/watcher/watcher.node
+./node_modules/node-pty/build/Release/pty.node
+./ripgrep/linux-x64/rg'
+actual=$(cd "$orcad" && find . -type f -exec sh -c '
+	for f; do
+		[ "$(head -c 4 "$f" | od -An -c | tr -d " \n")" = "177ELF" ] &&
+		    echo "$f"
+	done' sh {} + | sort)
+if [ "$actual" != "$expected" ]; then
+	echo "post-extract: the tarball's orcad/ holds the binaries" >&2
+	echo "$actual" >&2
+	fail "instead of the ones this port replaces; check what is new"
+fi
+
+# The markers that make orcad demand its pinned Node. orcad.js treats any
+# one of them as a packaged install, so all three have to go.
+for f in .runtime-node .server-target .version; do
+	[ -f "$orcad/$f" ] || fail "no marker $f in orcad/; re-check how orcad finds its runtime"
+done
+
+# The server: orcad/ without the markers, the Linux binaries and ripgrep's
+# licences.
+mkdir -p "$APPSRC"
+(cd "$orcad" && tar -cf - --exclude ./.runtime-node \
+    --exclude ./.server-target --exclude ./.version --exclude ./ripgrep \
+    --exclude ./node_modules/node-pty/build \
+    --exclude ./node_modules/@parcel/watcher/watcher.node .) |
+    (cd "$APPSRC" && tar -xf -)
+
+cp "$srvdir/$top/LICENSE" "$WRKDIR/LICENSE"
+rm -rf "$srvdir"
+
+# The node-pty sources, which EXTRACT_ONLY already unpacked into WRKSRC,
+# and @parcel/watcher's, both building against the same node-addon-api.
+[ "$(version_of "$WRKSRC/package.json")" = "$NODE_PTY_VERSION" ] ||
+    fail "WRKSRC does not hold node-pty $NODE_PTY_VERSION"
+
+mkdir -p "$WATCHER_WRKSRC"
+tar -xf "$DISTFILES_DIR/watcher-$PARCEL_WATCHER_VERSION.tgz" \
+    -C "$WATCHER_WRKSRC" --strip-components 1
+for d in "$WRKSRC" "$WATCHER_WRKSRC"; do
+	mkdir -p "$d/node_modules/node-addon-api"
+	tar -xf "$DISTFILES_DIR/node-addon-api-$NODE_ADDON_API_VERSION.tgz" \
+	    -C "$d/node_modules/node-addon-api" --strip-components 1
+done
+
+# node-pty's tarball carries upstream's prebuilt macOS and Windows addons;
+# make sure nothing can pick them up instead of the one built here.
+rm -rf "$WRKSRC/prebuilds"

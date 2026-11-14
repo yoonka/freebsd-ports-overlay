@@ -1,0 +1,167 @@
+#!/bin/sh
+
+# PROVIDE: orca_server
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# Add the following lines to /etc/rc.conf to run Orca's server (orcad):
+#
+# orca_server_enable (bool):	Set to "YES" to enable. Default: "NO"
+# orca_server_user (str):		User orcad runs as; agents, git and terminals
+#				run with this user's home, credentials and
+#				files. The profile, which holds the server's
+#				identity and paired clients, is in that home:
+#				after a change of user, pair the clients again.
+#				Default: "orca"
+# orca_server_bind (str):		Literal IP address to listen on.
+#				Default: "0.0.0.0" (every interface)
+# orca_server_port (int):		Port. Default: "6768"
+# orca_server_pairing_address (str): Address clients are told to dial, for
+#				example a Tailscale or LAN address.
+#				Default: "" (the bound address)
+# orca_server_datadir (str):	Orca's profile directory.
+#				Default: "~${orca_server_user}/.orca"
+# orca_server_shell (str):		Shell for terminals. Default: the user's login
+#				shell, or bash, zsh or /bin/sh if that is
+#				nologin
+# orca_server_path (str):		PATH for orcad, its terminals and agents.
+#				Default: system paths, %%LOCALBASE%% and
+#				~/.local/bin
+# orca_server_pairing (bool):	Create a pairing link at every start and
+#				write it to the log. Default: "NO"; use
+#				`service orca_server pair` to pair a client.
+# orca_server_logfile (str):	Log file, readable by root only.
+#				Default: "/var/log/orca_server.log"
+# orca_server_flags (str):		Extra orcad options. Default: ""
+#
+# Extra command:
+#   pair	Restart the server with a pairing link and print it.
+#
+# Stopping the service stops orcad but not its terminal daemon, as upstream
+# intends: terminals and the agents in them survive restarts and updates.
+
+. /etc/rc.subr
+
+name=orca_server
+rcvar=orca_server_enable
+desc="Orca server"
+
+load_rc_config $name
+
+: ${orca_server_enable:="NO"}
+: ${orca_server_user:="orca"}
+: ${orca_server_bind:="0.0.0.0"}
+: ${orca_server_port:="6768"}
+: ${orca_server_pairing_address:=""}
+: ${orca_server_pairing:="NO"}
+: ${orca_server_logfile:="/var/log/orca_server.log"}
+: ${orca_server_flags:=""}
+
+# daemon(8) stays root and starts orcad as the user (-u). Stopping the
+# service, the pid file and the log then never depend on the user, also
+# when orca_server_user changes while the server runs. rc.subr must not switch
+# to the user itself: it would run daemon(8) as the user, where -u fails,
+# and send the stop signal as whichever user rc.conf names at that moment.
+_orca_server_user=${orca_server_user}
+unset orca_server_user
+
+pidfile="/var/run/${name}.pid"
+procname="/usr/sbin/daemon"
+command="/usr/sbin/daemon"
+start_precmd="${name}_prestart"
+extra_commands="pair"
+pair_cmd="${name}_pair"
+
+orca_server_home()
+{
+	getent passwd "${_orca_server_user}" | cut -d: -f6
+}
+
+orca_server_args()
+{
+	local home shell path pairing
+
+	home=$(orca_server_home)
+	: ${orca_server_datadir:="${home}/.orca"}
+
+	shell=${orca_server_shell}
+	if [ -z "${shell}" ]; then
+		shell=$(getent passwd "${_orca_server_user}" | cut -d: -f7)
+		case "${shell}" in
+		*/nologin|*/false|"")
+			shell=/bin/sh
+			for s in %%LOCALBASE%%/bin/bash %%LOCALBASE%%/bin/zsh; do
+				if [ -x "${s}" ]; then
+					shell=${s}
+					break
+				fi
+			done
+			;;
+		esac
+	fi
+	path=${orca_server_path:-/sbin:/bin:/usr/sbin:/usr/bin:%%LOCALBASE%%/sbin:%%LOCALBASE%%/bin:${home}/.local/bin}
+
+	pairing=--no-pairing
+	if checkyesno orca_server_pairing || [ -n "${_orca_server_pair_now}" ]; then
+		pairing=
+	fi
+
+	command_args="-f -r -R 10 -u ${_orca_server_user} -P ${pidfile} \
+	    -o ${orca_server_logfile} -H \
+	    /usr/bin/env HOME=${home} SHELL=${shell} PATH=${path} \
+	    ORCA_USER_DATA=${orca_server_datadir} LANG=${LANG:-C.UTF-8} \
+	    %%PREFIX%%/bin/orca-ide serve --bind ${orca_server_bind} \
+	    --port ${orca_server_port} \
+	    ${orca_server_pairing_address:+--pairing-address ${orca_server_pairing_address}} \
+	    ${pairing} ${orca_server_flags}"
+}
+
+orca_server_prestart()
+{
+	local home
+
+	home=$(orca_server_home)
+	if [ -z "${home}" ]; then
+		err 1 "user ${_orca_server_user} does not exist"
+	fi
+	install -d -o "${_orca_server_user}" -m 0700 "${orca_server_datadir}"
+	# daemon(8) writes the log as root. It holds pairing links when pairing
+	# is on, so it is root's alone, also when an older version of this
+	# script left it to the service user.
+	if [ ! -e "${orca_server_logfile}" ]; then
+		install -m 0600 /dev/null "${orca_server_logfile}"
+	fi
+	chown root:wheel "${orca_server_logfile}"
+	chmod 0600 "${orca_server_logfile}"
+}
+
+orca_server_pair()
+{
+	local start lines
+
+	start=$(($(wc -l < "${orca_server_logfile}" 2>/dev/null || echo 0) + 1))
+	( run_rc_command ${_rc_prefix}stop )
+	(
+		_orca_server_pair_now=1
+		orca_server_args
+		run_rc_command ${_rc_prefix}start
+	)
+	echo "Waiting for the pairing link..."
+	for i in $(seq 1 120); do
+		lines=$(tail -n "+${start}" "${orca_server_logfile}" 2>/dev/null |
+		    grep -E '^(Web client URL|Pairing URL|Pairing unavailable|Pairing guidance): ')
+		case "${lines}" in
+		*"Pairing URL: "*|*"Pairing unavailable: "*)
+			echo "${lines}"
+			echo "The link pairs one client. Run 'service ${name} pair' again for another."
+			return 0
+			;;
+		esac
+		sleep 1
+	done
+	err 1 "no pairing link in ${orca_server_logfile} after 120 seconds"
+}
+
+orca_server_args
+
+run_rc_command "$1"

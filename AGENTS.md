@@ -40,7 +40,8 @@ update `notes/`, and stop before committing.
 | net/livekit-server | github.com/livekit/livekit | Go modules, CGO off |
 | multimedia/livekit-ingress | github.com/livekit/ingress | Go modules + CGO GStreamer |
 | multimedia/livekit-egress | github.com/livekit/egress | Go modules + CGO GStreamer, optional Chromium |
-| devel/orca-ide | github.com/stablyai/orca releases | server JS from the Linux .deb on www/node24; node-pty and @parcel/watcher built here |
+| devel/orca-ide | github.com/stablyai/orca releases | server JS and browser client from the Linux .deb on www/node24; node-pty and @parcel/watcher built here |
+| devel/orca-server | github.com/stablyai/orca releases | server JS from the server-only Linux tarball on www/node24; node-pty and @parcel/watcher built here |
 | sysutils/knotify | github.com/yoonka/beamports releases, `knotify/` | cargo |
 | databases/duckport | github.com/yoonka/beamports releases, `duckport/` | cargo; DuckDB from the duckdb crate's bundled source |
 | databases/oxiport | github.com/yoonka/beamports releases, `oxiport/` | cargo with libclang; a patch to the vendored oxigraph crate |
@@ -256,30 +257,44 @@ failure table. In short:
   must be built with its PULSEAUDIO option.
 - The UIDs are livekit 590, livekit-egress 591 and livekit-ingress 592.
 
-### devel/orca-ide
+### devel/orca-ide and devel/orca-server
 
 `orca-ide serve` runs Orca's server (orcad) on www/node24, without
-Electron. Desktop apps and browsers pair with it. Upstream releases almost
-daily. `notes/devel-orca-ide.txt` has the details.
+Electron. Upstream releases almost daily. Both ports package the same
+server and conflict with each other:
+
+- devel/orca-ide takes it from the desktop .deb, with the browser client,
+  so desktop apps and browsers pair with it. The desktop app is meant to
+  be ported here later.
+- devel/orca-server takes it from upstream's server-only tarball, without
+  the browser client; desktop apps pair with it.
+
+`notes/devel-orca-ide.txt` has the details, and
+`notes/devel-orca-server.txt` what differs. `files/orca-ide.in`,
+`files/freebsd-compat.cjs` and `files/check-ps-calls.cjs` are identical in
+both, and `orca_server.in` is `orca_ide.in` with the names changed: update
+both ports to the same release together and keep these files in step.
+
+For each port:
 
 1. Run `make find-new-version`. It sets DISTVERSION and the node-pty,
    @parcel/watcher and node-addon-api versions from the release's
    pnpm-lock.yaml, and prints the expected hash of upstream's node-pty
-   patch.
-2. Run makesum, then check the node-pty patch hash in distinfo against
-   the hash that was printed.
+   patch (orca-server: also of the server tarball).
+2. Run makesum, then check the printed hashes against distinfo.
 3. Run testport. It stops loudly when something moved:
-   - post-extract: the orcad template schema, the version in the .deb,
-     the node-pty version, or the per-platform file list;
+   - post-extract: the layout of the .deb or the tarball, the version,
+     the node-pty version, or the list of Linux binaries it replaces;
    - the node-pty patch or the addon build;
    - `check-ps-calls.cjs`: a ps(1) call that `freebsd-compat.cjs` does
      not rewrite (FreeBSD's ps reads `-o a=,b=` as one column);
    - check-plist.
 4. Smoke test in a throwaway jail: the log shows "PTY self-test passed",
-   `service orca_ide pair` prints both links, and closing a terminal
-   leaves no background jobs behind.
+   `service orca_ide pair` prints both links (`service orca_server pair`
+   the pairing link), and closing a terminal leaves no background jobs
+   behind.
 
-The orca user is UID/GID 593.
+Both use the orca user, UID/GID 593, home /var/db/orca.
 
 ### sysutils/knotify
 
