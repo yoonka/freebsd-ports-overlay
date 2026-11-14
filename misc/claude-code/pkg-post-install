@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# Claude Code loads most of its code on demand, from files whose names change
+# with every release. A session started before an upgrade fails at its next
+# load ("ENOENT reading .../chunk-<hash>.js"), so list the ones still running.
+#
+# pkg joins this with any other post-install code into one script: return from
+# the function, never exit.
+
+claude_code_running() {
+	local cli jid pids
+
+	# Not for installs into another root (pkg -r) or a chroot (pkg -c): the
+	# processes seen from here do not run that installation.
+	[ "${PKG_ROOTDIR:-/}" = / ] || return 0
+	[ "${PKG_CHROOTED}" = true ] && return 0
+
+	cli=${PKG_PREFIX}/lib/node_modules/@anthropic-ai/claude-code/cli
+	jid=$(ps -o jid= -p $$ | tr -d ' ')
+
+	# Every claude process runs as `bun [options] <cli> ...`. Seen from the
+	# host, processes in jails run the jail's own installation: left out.
+	pids=$(ps -axww -o pid= -o jid= -o args= | awk -v cli="$cli" -v jid="$jid" '
+		$2 == jid { for (i = 3; i <= NF; i++) if ($i == cli) { print $1; next } }')
+	[ -n "$pids" ] || return 0
+
+	{
+		echo "These Claude Code processes were started before this installation:"
+		echo
+		ps -o pid,user,tty,lstart -p "$(echo $pids | tr ' ' ',')"
+		echo
+		echo "They load code on demand from files that have now been replaced, and"
+		echo "fail at their next load. Restart them; claude --continue (or --resume)"
+		echo "picks up their conversations."
+	} >&"${PKG_MSGFD:-1}"
+	return 0
+}
+claude_code_running

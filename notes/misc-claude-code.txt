@@ -146,6 +146,19 @@ Changes relative to 275119
   only; the maintainers may want an upgrade entry for users coming from
   the Linux-binary port.
 
+- New pkg-post-install. claude loads most of its code on demand from
+  files whose names change with every release, so a session started
+  before an upgrade fails at its next load ("BuildMessage: ENOENT
+  reading .../chunk-<hash>.js", seen at /login and /exit). The script
+  lists the claude processes still running from PREFIX (PID, user, tty,
+  start time) through PKG_MSGFD and says to restart them; it never
+  blocks the upgrade. It does nothing for pkg -r and pkg -c, and leaves
+  out processes in other jails, which run their own installation. It
+  returns rather than exits, because pkg joins it with any other
+  post-install code. No PORTREVISION bump: a reinstall of the same
+  version replaces files with the same names and breaks nothing, so the
+  script first matters with the next version.
+
 - pkg-descr no longer says claude is a Linux binary run through the
   Linuxulator (also stale after 275119).
 
