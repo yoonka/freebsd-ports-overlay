@@ -1,0 +1,81 @@
+databases/oxiport: Oxigraph SPARQL store run as an Erlang port
+==============================================================
+
+New port. oxiport runs SPARQL queries and updates against an Oxigraph
+RDF store (RocksDB on disk).
+
+- Interactive mode: query, update, clear and exit commands, one per
+  line, with the GeoSPARQL functions (spargeo).
+- --jsonl: the operations query (SELECT and ASK, SPARQL JSON results,
+  at most 1000 solutions) and update (acknowledged after the store is
+  flushed).
+
+With --jsonl it speaks the request protocol described in beamports'
+README: one JSON object per line each way, a version and a request_id
+that the reply repeats, at most 16 MiB per line, and success reported
+only once the change is durable. jsonl_port, in the same repository, is
+the Elixir client for it; it is not ported on its own, since
+applications compile it in.
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay
+(databases/oxiport)
+
+
+Version
+-------
+
+1.1.0, from the tag v1.1.0 of beamports
+(https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
+several programs and their Elixir clients, one directory each, and a
+tag releases all of them at one version, so a new tag may leave oxiport
+unchanged. The port fetches the whole repository (about 100 kB) and
+builds in oxiport/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
+LICENSE one level up. Before 1.1.0, oxiport was developed in a private
+repository.
+
+
+The port
+--------
+
+- USES=cargo; Makefile.crates generated from upstream's Cargo.lock
+  (180 crates).
+- Oxigraph 0.5.13 compiles RocksDB from the oxrocksdb-sys crate's
+  bundled C++ source and generates its bindings with bindgen, so the
+  build needs devel/llvm for libclang (LIBCLANG_PATH in CARGO_ENV).
+- Installs bin/oxiport.
+- files/patch-cargo-crates_oxigraph-0.5.13_src_storage_rocksdb__wrapper.rs:
+  oxigraph 0.5.13 does not compile on FreeBSD. Since its #1619 it
+  converts the RLIMIT_NOFILE values with u64::from, and rlim_t is i64
+  on FreeBSD ("the trait bound `u64: From<i64>` is not satisfied").
+  The patch is upstream's pull request
+  https://github.com/oxigraph/oxigraph/pull/2031, which converts with
+  u64::try_from on FreeBSD and DragonFly (RLIM_INFINITY is i64::MAX
+  there). databases/oxigraph in this overlay patches the same line.
+- CARGO_UPDATE_ARGS=--workspace and CARGO_INSTALL_ARGS=--locked keep
+  upstream's Cargo.lock. bindgen 0.73.2 declares syn ">=2, <4" but
+  passes syn values to prettyplease 0.2, which uses syn 2. Since syn 3
+  is vendored too (for another crate), cargo.mk's "cargo update" and an
+  unlocked "cargo install" move bindgen to syn 3, and it fails to
+  compile (`syn::File: ParseQuote` is not satisfied).
+
+Oxigraph 0.5 migrates a store written by 0.4 in place on its first
+read-write open; 0.4 cannot open it afterwards.
+
+
+Tested
+------
+
+With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+lang/rust 1.99.1:
+
+- poudriere testport: build, stage-qa and check-plist clean; package,
+  install and deinstall pass. Without CARGO_UPDATE_ARGS and
+  CARGO_INSTALL_ARGS (see above) the build fails in bindgen.
+- The binary built by the port, with --jsonl: an update was committed
+  and a SELECT returned the triple; --version reports 1.1.0.
+- Before the port, from the same source: every operation and error case
+  its README lists, the interactive mode with a GeoSPARQL function and
+  --update-base, and a store written with Oxigraph 0.4, which was
+  migrated and kept its data.
+
+Not tested: aarch64 and other architectures.

@@ -1,0 +1,8 @@
+tantiport is a full-text search engine built on Tantivy, for use as an
+Erlang or Elixir port.
+
+With --jsonl it speaks a versioned request protocol: documents with an
+id, a grouping key, a title, a text and JSON metadata are added,
+replaced, deleted, listed and searched, and every change is committed
+before it is acknowledged. jsonl_port is the Elixir client for that
+protocol. Without --jsonl it runs a small search demo.

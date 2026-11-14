@@ -1,0 +1,10 @@
+oxiport runs SPARQL queries and updates against an Oxigraph RDF store,
+for use as an Erlang or Elixir port.
+
+Its interactive mode reads query and update commands, one per line,
+and has the GeoSPARQL functions. With --jsonl it speaks a versioned
+request protocol: correlated SELECT and ASK queries with JSON results,
+and updates acknowledged only after the store is flushed to disk.
+jsonl_port is the Elixir client for that protocol.
+
+Oxigraph 0.5 with its RocksDB storage is built in from source.

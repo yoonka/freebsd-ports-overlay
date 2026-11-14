@@ -1,0 +1,60 @@
+databases/tantiport: Tantivy full-text search run as an Erlang port
+===================================================================
+
+New port. tantiport is a full-text search engine built on Tantivy.
+
+- --jsonl: documents with an id, a grouping key (hierarchy), a title
+  and a text (searched) and JSON metadata (returned) are upserted,
+  deleted, listed, fetched and searched (as a phrase in the title and
+  text); every change is committed before it is acknowledged.
+- Without --jsonl: a small demo that searches three sample documents.
+
+With --jsonl it speaks the request protocol described in beamports'
+README: one JSON object per line each way, a version and a request_id
+that the reply repeats, at most 16 MiB per line, and success reported
+only once the change is durable. jsonl_port, in the same repository, is
+the Elixir client for it; it is not ported on its own, since
+applications compile it in.
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay
+(databases/tantiport)
+
+
+Version
+-------
+
+1.1.0, from the tag v1.1.0 of beamports
+(https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
+several programs and their Elixir clients, one directory each, and a
+tag releases all of them at one version, so a new tag may leave tantiport
+unchanged. The port fetches the whole repository (about 100 kB) and
+builds in tantiport/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
+LICENSE one level up. Before 1.1.0, tantiport was developed in a private
+repository.
+
+
+The port
+--------
+
+- USES=cargo; Makefile.crates generated from upstream's Cargo.lock
+  (171 crates).
+- Tantivy 0.27; it opens indexes written by Tantivy 0.22 (format 6).
+- Installs bin/tantiport.
+- No patches.
+
+
+Tested
+------
+
+With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+lang/rust 1.99.1:
+
+- poudriere testport: build, stage-qa and check-plist clean; package,
+  install and deinstall pass.
+- The binary built by the port, with --jsonl: an upsert was committed
+  and a search returned the document's metadata and id.
+- Before the port, from the same source: every operation and error case
+  its README lists, the demo mode, and an index written by Tantivy 0.22,
+  which 0.27 opened, added to and searched.
+
+Not tested: aarch64 and other architectures.

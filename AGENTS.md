@@ -42,6 +42,9 @@ update `notes/`, and stop before committing.
 | multimedia/livekit-egress | github.com/livekit/egress | Go modules + CGO GStreamer, optional Chromium |
 | devel/orca-ide | github.com/stablyai/orca releases | server JS from the Linux .deb on www/node24; node-pty and @parcel/watcher built here |
 | sysutils/knotify | github.com/yoonka/beamports releases, `knotify/` | cargo |
+| databases/duckport | github.com/yoonka/beamports releases, `duckport/` | cargo; DuckDB from the duckdb crate's bundled source |
+| databases/oxiport | github.com/yoonka/beamports releases, `oxiport/` | cargo with libclang; a patch to the vendored oxigraph crate |
+| databases/tantiport | github.com/yoonka/beamports releases, `tantiport/` | cargo |
 
 Not ported yet: livekit/rust-sdks (its liblivekit_ffi needs Google's
 libwebrtc, which has no FreeBSD build).
@@ -299,6 +302,27 @@ in it changed.
 3. Run testport, then a short check of both modes: JSON events for a
    create, modify and remove, and an ETF `ready` and `paths` batch from
    an Erlang port (`{packet, 4}`, a credit sent after `ready`).
+
+### databases/duckport, databases/oxiport, databases/tantiport
+
+Database engines (DuckDB, Oxigraph, Tantivy) that Erlang and Elixir
+applications run as ports. Like knotify, each is one directory of the
+beamports repository, and a tag may leave it unchanged: compare its
+directory between the two tags first. Their Elixir client, jsonl_port,
+is not ported. `notes/databases-<port>.txt` has the details.
+
+1. Bump `DISTVERSION`, run makesum, then `make extract` and
+   `make cargo-crates > Makefile.crates`, and makesum again.
+2. oxiport: `files/patch-cargo-crates_oxigraph-*` makes the vendored
+   oxigraph 0.5.13 build on FreeBSD (`u64::from` on the signed
+   `rlim_t`, fixed upstream by oxigraph/oxigraph#2031). When
+   Cargo.lock moves to another oxigraph, drop the patch if that release
+   has the fix, or remake it for the new version (`make makepatch`).
+   Its `CARGO_UPDATE_ARGS`/`CARGO_INSTALL_ARGS` keep upstream's
+   Cargo.lock, because re-resolving moves bindgen to syn 3 (see the
+   notes); drop them once bindgen requires syn 2 only.
+3. Run testport. duckport and oxiport compile DuckDB and RocksDB from
+   C++ source and take much longer than tantiport.
 
 ## Before handing back
 

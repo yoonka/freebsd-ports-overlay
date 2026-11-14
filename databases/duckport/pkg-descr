@@ -1,0 +1,11 @@
+duckport runs SQL against a DuckDB database file. It reads requests on
+standard input and writes JSON on standard output, so that an Erlang or
+Elixir application can run it as a port.
+
+In its line mode each input line is one SQL statement. With --jsonl it
+speaks a versioned request protocol: correlated requests, parameterised
+queries, and batches of statements committed in one transaction, each
+acknowledged only once it is durable. jsonl_port is the Elixir client
+for that protocol.
+
+DuckDB 2.0 is built in from source.
