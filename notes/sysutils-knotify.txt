@@ -1,0 +1,91 @@
+sysutils/knotify: file system watcher for Erlang and Elixir ports
+=================================================================
+
+New port. knotify (the knotify/ directory of
+https://github.com/yoonka/beamports, BSD-3-Clause) watches files and
+directories with the notify crate and reports changes on standard
+output:
+
+- by default one JSON object per event, for example
+  {"kind":"CREATE_FILE","paths":["/srv/data/a.txt"]}, optionally
+  filtered by kind (--filter create,modify,remove,rename);
+- with --protocol etf (new in 1.1.0), batches of changed paths relative
+  to one root, as length-prefixed Erlang terms, with credit-based flow
+  control and rescan requests when events are lost (docs/protocol.md,
+  installed with DOCS).
+
+It is meant to run as an Erlang port. KnotifyEx (knotify_ex/ in the
+same repository, on Hex as knotify_ex) is the Elixir library that does
+that. The library is not ported on its own: an Elixir application
+compiles it in (from Hex or as a path dependency) and needs only this
+binary at run time.
+
+Overlay: https://github.com/yoonka/freebsd-ports-overlay
+(sysutils/knotify)
+
+
+Version
+-------
+
+1.1.0, from the tag v1.1.0 of beamports. beamports holds several
+programs and their Elixir clients, one directory each, and a tag
+releases all of them at one version, so a new tag may leave knotify
+unchanged. The port fetches the whole repository (about 100 kB) and
+builds in knotify/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
+LICENSE one level up. knotify was a repository of its own up to
+v1.0.3, which had the JSON mode only.
+
+
+The port
+--------
+
+- USES=cargo; Makefile.crates generated from upstream's Cargo.lock
+  (73 crates, including the dev-dependency tempfile used by the tests).
+- Installs bin/knotify and, with DOCS, README.md and protocol.md.
+- No patches: notify uses kqueue on FreeBSD (RecommendedWatcher), and
+  the rest is portable Rust (std::os::unix for raw path bytes).
+- pkg-message: the descriptor cost of kqueue, see below.
+
+
+kqueue
+------
+
+kqueue watches vnodes, so notify opens every file and directory it
+watches. With --recursive that is one descriptor per entry in the
+tree: watching 5000 files in 51 directories, knotify held 5060 open
+descriptors. The default kern.maxfilesperproc scales with RAM; a
+watcher of a large tree on a small machine, or under a login class
+with a low openfiles limit, needs a higher limit. pkg-message says so.
+
+kqueue reports no rename pairs: a rename shows up as a remove and a
+create (JSON), or as both paths in one batch (ETF). Upstream's README
+lists a --backend option; it is parsed but ignored (the backend choice
+is commented out), and notify always picks kqueue here.
+
+A new directory is watched only once its creation has been reported,
+so a file created in it immediately afterwards can go unreported: in
+the ETF check below, a file written straight after its directory was
+created appeared in 1 of 4 runs, while the directory itself appeared in
+every run. A consumer has to scan a directory reported as new.
+
+
+Tested
+------
+
+With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+lang/rust 1.99.1:
+
+- poudriere testport: build, stage-qa and check-plist clean; package,
+  install and deinstall pass.
+- `make test`: upstream's 10 unit tests and its 2 protocol tests
+  (hint mode reports ready and exits when stdin closes) pass.
+- JSON mode: create, modify, mkdir and a file inside the new
+  directory, rename (a create and a remove) and remove were all
+  reported.
+- ETF mode, driven from an Erlang port with {packet, 4} as KnotifyEx
+  does: "ready", then after a credit one "paths" batch with the
+  relative paths of a new file, a new directory and both ends of a
+  rename; the file written into the new directory right after it was
+  created appeared in 1 of 4 runs (see kqueue above).
+
+Not tested: aarch64, and long runs against large trees.

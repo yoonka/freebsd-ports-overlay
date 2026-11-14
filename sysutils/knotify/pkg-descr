@@ -1,0 +1,11 @@
+knotify watches files and directories and reports what changes on
+standard output: by default one JSON object per event, optionally
+filtered by kind (create, modify, remove, rename).
+
+Its ETF mode (--protocol etf) is meant for Erlang and Elixir programs
+that run it as a port. It sends batches of changed paths, relative to
+one root and byte-exact, as length-prefixed Erlang terms, with credits
+for flow control and rescan requests when events are lost. KnotifyEx is
+the Elixir library that drives it.
+
+It is built on the notify crate, which uses kqueue(2) on FreeBSD.

@@ -41,6 +41,7 @@ update `notes/`, and stop before committing.
 | multimedia/livekit-ingress | github.com/livekit/ingress | Go modules + CGO GStreamer |
 | multimedia/livekit-egress | github.com/livekit/egress | Go modules + CGO GStreamer, optional Chromium |
 | devel/orca-ide | github.com/stablyai/orca releases | server JS from the Linux .deb on www/node24; node-pty and @parcel/watcher built here |
+| sysutils/knotify | github.com/yoonka/beamports releases, `knotify/` | cargo |
 
 Not ported yet: livekit/rust-sdks (its liblivekit_ffi needs Google's
 libwebrtc, which has no FreeBSD build).
@@ -276,6 +277,28 @@ daily. `notes/devel-orca-ide.txt` has the details.
    leaves no background jobs behind.
 
 The orca user is UID/GID 593.
+
+### sysutils/knotify
+
+A file watcher (the notify crate, kqueue on FreeBSD) that Elixir
+programs run as a port through the knotify_ex library. The library is
+not ported: applications compile it in and depend on this port for the
+binary. `notes/sysutils-knotify.txt` has the details.
+
+knotify is the `knotify/` directory of the beamports repository
+(`WRKSRC_SUBDIR`), whose tags release all of its projects at one
+version. A new release may leave knotify unchanged: compare
+`knotify/` between the two tags first, and skip the update if nothing
+in it changed.
+
+1. Bump `DISTVERSION`, run makesum, then `make extract` and
+   `make cargo-crates > Makefile.crates`, and makesum again.
+2. Run `make test` with the flags from "Running make outside
+   poudriere". testport does not run upstream's tests, and they cover
+   the ETF protocol that knotify_ex speaks.
+3. Run testport, then a short check of both modes: JSON events for a
+   create, modify and remove, and an ETF `ready` and `paths` batch from
+   an Erlang port (`{packet, 4}`, a credit sent after `ready`).
 
 ## Before handing back
 

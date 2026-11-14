@@ -1,0 +1,11 @@
+[
+{ type: install
+  message: <<EOM
+knotify watches through kqueue(2), which needs an open file descriptor
+for every file and directory it watches: with --recursive, one per
+entry in the tree. Keep the per-process limit (kern.maxfilesperproc,
+and the openfiles limit of the login class the watcher runs under)
+above the number of entries in the largest tree it watches.
+EOM
+}
+]
