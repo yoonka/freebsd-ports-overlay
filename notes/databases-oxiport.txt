@@ -27,10 +27,13 @@ Version
 1.1.0, from the tag v1.1.0 of beamports
 (https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
 several programs and their Elixir clients, one directory each, and a
-tag releases all of them at one version, so a new tag may leave oxiport
-unchanged. The port fetches the whole repository (about 100 kB) and
-builds in oxiport/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
-LICENSE one level up. Before 1.1.0, oxiport was developed in a private
+tag releases all of them at one version. Its four ports
+(sysutils/knotify, databases/duckport, databases/oxiport,
+databases/tantiport) share the version and the source settings in
+sysutils/knotify/Makefile.beamports and move to a new tag together.
+They fetch the same distfile, the whole repository (about 100 kB), and
+each builds in its own directory (WRKSRC_SUBDIR=${PORTNAME});
+LICENSE_FILE is the repository's LICENSE one level up. Before 1.1.0, oxiport was developed in a private
 repository.
 
 
@@ -56,7 +59,10 @@ The port
   passes syn values to prettyplease 0.2, which uses syn 2. Since syn 3
   is vendored too (for another crate), cargo.mk's "cargo update" and an
   unlocked "cargo install" move bindgen to syn 3, and it fails to
-  compile (`syn::File: ParseQuote` is not satisfied).
+  compile (`syn::File: ParseQuote` is not satisfied). Upstream's lock
+  after 1.1.0 (yoonka/beamports#8) pairs bindgen with syn 3 and
+  prettyplease 0.3 and no longer changes when re-resolved, so the next
+  version can drop both settings.
 
 Oxigraph 0.5 migrates a store written by 0.4 in place on its first
 read-write open; 0.4 cannot open it afterwards.

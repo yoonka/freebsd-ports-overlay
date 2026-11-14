@@ -1,0 +1,22 @@
+# Shared by the ports of the beamports repository: sysutils/knotify,
+# databases/duckport, databases/oxiport and databases/tantiport. Each
+# port's Makefile sets PORTNAME, which is also its directory in the
+# repository, and what is its own, then includes this file. A beamports
+# tag releases all of its projects at one version, so the four ports move
+# to a new tag together: change DISTVERSION here, then run makesum and
+# cargo-crates in each port, which keeps its own Makefile.crates and
+# distinfo.
+
+DISTVERSIONPREFIX=	v
+DISTVERSION=	1.1.0
+
+WWW=		https://github.com/yoonka/beamports
+
+LICENSE=	BSD3CLAUSE
+LICENSE_FILE=	${WRKSRC}/../LICENSE
+
+USE_GITHUB=	yes
+GH_ACCOUNT=	yoonka
+GH_PROJECT=	beamports
+
+WRKSRC_SUBDIR=	${PORTNAME}

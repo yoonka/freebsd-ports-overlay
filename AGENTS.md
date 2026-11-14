@@ -303,13 +303,14 @@ programs run as a port through the knotify_ex library. The library is
 not ported: applications compile it in and depend on this port for the
 binary. `notes/sysutils-knotify.txt` has the details.
 
-knotify is the `knotify/` directory of the beamports repository
-(`WRKSRC_SUBDIR`), whose tags release all of its projects at one
-version. A new release may leave knotify unchanged: compare
-`knotify/` between the two tags first, and skip the update if nothing
-in it changed.
+knotify and the three database ports below build from the beamports
+repository, one directory each (`WRKSRC_SUBDIR`). A beamports tag
+releases all of its projects at one version, so the four ports share
+their version and source settings in `sysutils/knotify/Makefile.beamports`
+and move to a new tag together, even when a program did not change.
 
-1. Bump `DISTVERSION`, run makesum, then `make extract` and
+1. Change `DISTVERSION` in `Makefile.beamports`, which moves all four
+   ports. Then, in each of them, run makesum, `make extract` and
    `make cargo-crates > Makefile.crates`, and makesum again.
 2. Run `make test` with the flags from "Running make outside
    poudriere". testport does not run upstream's tests, and they cover
@@ -322,20 +323,24 @@ in it changed.
 
 Database engines (DuckDB, Oxigraph, Tantivy) that Erlang and Elixir
 applications run as ports. Like knotify, each is one directory of the
-beamports repository, and a tag may leave it unchanged: compare its
-directory between the two tags first. Their Elixir client, jsonl_port,
-is not ported. `notes/databases-<port>.txt` has the details.
+beamports repository and takes its version from
+`sysutils/knotify/Makefile.beamports`: update them together with
+knotify. Their Elixir client, jsonl_port, is not ported.
+`notes/databases-<port>.txt` has the details.
 
-1. Bump `DISTVERSION`, run makesum, then `make extract` and
-   `make cargo-crates > Makefile.crates`, and makesum again.
+1. After the version change in `Makefile.beamports`, run makesum,
+   `make extract` and `make cargo-crates > Makefile.crates`, and
+   makesum again.
 2. oxiport: `files/patch-cargo-crates_oxigraph-*` makes the vendored
    oxigraph 0.5.13 build on FreeBSD (`u64::from` on the signed
    `rlim_t`, fixed upstream by oxigraph/oxigraph#2031). When
    Cargo.lock moves to another oxigraph, drop the patch if that release
    has the fix, or remake it for the new version (`make makepatch`).
    Its `CARGO_UPDATE_ARGS`/`CARGO_INSTALL_ARGS` keep upstream's
-   Cargo.lock, because re-resolving moves bindgen to syn 3 (see the
-   notes); drop them once bindgen requires syn 2 only.
+   Cargo.lock, because re-resolving 1.1.0's lock moves bindgen to syn 3
+   (see the notes). yoonka/beamports#8 made the lock stable: drop them
+   when moving to the first tag after 1.1.0, and check the build log
+   after "Updating Cargo.lock" for Updating or Removing lines.
 3. Run testport. duckport and oxiport compile DuckDB and RocksDB from
    C++ source and take much longer than tantiport.
 

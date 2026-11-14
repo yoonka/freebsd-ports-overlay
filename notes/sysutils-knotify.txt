@@ -29,10 +29,13 @@ Version
 
 1.1.0, from the tag v1.1.0 of beamports. beamports holds several
 programs and their Elixir clients, one directory each, and a tag
-releases all of them at one version, so a new tag may leave knotify
-unchanged. The port fetches the whole repository (about 100 kB) and
-builds in knotify/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
-LICENSE one level up. knotify was a repository of its own up to
+releases all of them at one version. Its four ports (sysutils/knotify,
+databases/duckport, databases/oxiport, databases/tantiport) share the
+version and the source settings in Makefile.beamports, in this port's
+directory, and move to a new tag together. They fetch the same
+distfile, the whole repository (about 100 kB), and each builds in its
+own directory (WRKSRC_SUBDIR=${PORTNAME}); LICENSE_FILE is the
+repository's LICENSE one level up. knotify was a repository of its own up to
 v1.0.3, which had the JSON mode only.
 
 

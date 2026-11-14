@@ -26,10 +26,13 @@ Version
 1.1.0, from the tag v1.1.0 of beamports
 (https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
 several programs and their Elixir clients, one directory each, and a
-tag releases all of them at one version, so a new tag may leave tantiport
-unchanged. The port fetches the whole repository (about 100 kB) and
-builds in tantiport/ (WRKSRC_SUBDIR); LICENSE_FILE is the repository's
-LICENSE one level up. Before 1.1.0, tantiport was developed in a private
+tag releases all of them at one version. Its four ports
+(sysutils/knotify, databases/duckport, databases/oxiport,
+databases/tantiport) share the version and the source settings in
+sysutils/knotify/Makefile.beamports and move to a new tag together.
+They fetch the same distfile, the whole repository (about 100 kB), and
+each builds in its own directory (WRKSRC_SUBDIR=${PORTNAME});
+LICENSE_FILE is the repository's LICENSE one level up. Before 1.1.0, tantiport was developed in a private
 repository.
 
 
