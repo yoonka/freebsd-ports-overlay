@@ -175,6 +175,14 @@ Changes relative to 275119
   claude from process.execPath. The embedded Bun is still 1.4.4
   (b82a63af8).
 
+- Updated to 2.1.325: one new Bun API, Bun.Archive, which stock Bun
+  1.4.4 has (check-bun-api.js: 53 APIs, all there), so neither
+  bun-ant-freebsd.cjs nor the known-absent list changed. pkg-plist and
+  the clawgod pin unchanged. The runner and plugin eval still start
+  their copies of claude from process.execPath. The embedded Bun is
+  still 1.4.4, but another build of it: 6634fc3b5 instead of
+  b82a63af8 (neither commit is in oven-sh/bun).
+
 
 Fixes that also apply to 275119
 -------------------------------
@@ -227,10 +235,11 @@ detached on a fresh pty returns true and makes /dev/tty openable where
 it failed with ENXIO before; 2.1.317 on Bun 1.4.4: testport and the
 TUI; 2.1.319 on Bun 1.4.4: testport, the TUI, and the bundle's own
 vm sandbox self-test, context creation and context-global check, run
-on stock Bun without isVmContextGlobal; 2.1.323 on Bun 1.4.4: testport
-and the TUI, in poudriere's jail left running by testport -I. Without
-network the first start stops at "Unable to connect to Anthropic
-services" before the theme picker, so run it where DNS works):
+on stock Bun without isVmContextGlobal; 2.1.323 and 2.1.325 on Bun
+1.4.4: testport and the TUI, in poudriere's jail left running by
+testport -I. Without network the first start stops at "Unable to
+connect to Anthropic services" before the theme picker, so run it where
+DNS works):
 
 - poudriere testport passes: stage-qa, check-plist, install and
   deinstall (licence checks not run: the build set has
@@ -287,7 +296,7 @@ Open issues and not tested
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
 - Version skew: the bundle is built against Anthropic's Bun (1.4.4 plus
-  private APIs, as embedded in 2.1.323) and runs here on upstream 1.4.4,
+  private APIs, as embedded in 2.1.325) and runs here on upstream 1.4.4,
   so for now only the private APIs differ. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer
