@@ -1,5 +1,5 @@
-TIMESTAMP = 1793533309
-SHA256 (bun-1.4.4/bun-freebsd-aarch64.zip) = b1f3c95d82c1fac38ccc3cad3da1a80e30298ebfd999218d6a4fc05b34325337
-SIZE (bun-1.4.4/bun-freebsd-aarch64.zip) = 49397439
-SHA256 (bun-1.4.4/bun-freebsd-x64-baseline.zip) = 83bb4d3962a87cb107b75141ac71b8b1b8ab4dad690b1b71a1a0f372c4549c5b
-SIZE (bun-1.4.4/bun-freebsd-x64-baseline.zip) = 49349143
+TIMESTAMP = 1795273429
+SHA256 (bun-1.4.5/bun-freebsd-aarch64.zip) = 54b88c88b81265395017e8683de293a8e317ddb3ea7ddb4ae7c75a34d652c8c7
+SIZE (bun-1.4.5/bun-freebsd-aarch64.zip) = 49428761
+SHA256 (bun-1.4.5/bun-freebsd-x64-baseline.zip) = 83293dc2416715d6dd72a987f37c0b580c316219fbdd0f10e13dd9ad0c6d4240
+SIZE (bun-1.4.5/bun-freebsd-x64-baseline.zip) = 49382981
