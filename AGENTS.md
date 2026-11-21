@@ -8,7 +8,8 @@ overlay. Poudriere ignores everything here that is not a
 The usual request is "update the overlay ports to the latest upstream".
 To do that, check every port in the table, update the ones that are
 behind by following their section below, validate each with testport,
-update `notes/`, and stop before committing.
+update their notes in `notes/` where they have any, and stop before
+committing.
 
 ## Ground rules
 
@@ -23,10 +24,16 @@ update `notes/`, and stop before committing.
 - Validate with `poudriere testport`, not `bulk`. Only testport runs
   stage-qa and check-plist, and check-plist is what notices upstream
   adding or dropping a file. A stale pkg-plist passes `bulk` silently.
+- Read the stage-qa section of the testport log even when testport
+  succeeds: poudriere does not fail the build on its errors (an
+  undeclared shared library went unnoticed this way).
 - Don't add ports to pkglists or change saved options as part of an
   update unless asked.
-- Each port in `notes/` has review notes (written for FreeBSD Bugzilla
-  submissions). Update them whenever the port changes.
+- Review notes (written for FreeBSD Bugzilla submissions) are in
+  `notes/`, as `<category>-<port>.txt` and sometimes further
+  `<category>-<port>-*.txt` files. Not every port has them; a port
+  without notes needs none for an update. When a port that has notes
+  changes, update them.
 
 ## Ports
 
@@ -271,9 +278,15 @@ server and conflict with each other:
 
 `notes/devel-orca-ide.txt` has the details, and
 `notes/devel-orca-server.txt` what differs. `files/orca-ide.in`,
-`files/freebsd-compat.cjs` and `files/check-ps-calls.cjs` are identical in
-both, and `orca_server.in` is `orca_ide.in` with the names changed: update
-both ports to the same release together and keep these files in step.
+`files/freebsd-compat.cjs`, `files/check-ps-calls.cjs` and
+`files/extra-patch-native_journal-file-lock_main.c` are identical in both,
+and `orca_server.in` is `orca_ide.in` with the names changed: update both
+ports to the same release together and keep these files in step.
+
+Since 1.4.259 the server also ships two Linux helpers, orca-provider-exec
+and journal-file-lock. The ports build both from upstream's C sources in
+`native/`, fetched from the release tag; journal-file-lock needs the patch
+above to build on FreeBSD.
 
 For each port:
 
@@ -286,6 +299,7 @@ For each port:
    - post-extract: the layout of the .deb or the tarball, the version,
      the node-pty version, or the list of Linux binaries it replaces;
    - the node-pty patch or the addon build;
+   - the journal-file-lock patch or the helper builds;
    - `check-ps-calls.cjs`: a ps(1) call that `freebsd-compat.cjs` does
      not rewrite (FreeBSD's ps reads `-o a=,b=` as one column);
    - check-plist.
@@ -298,7 +312,8 @@ Both use the orca user, UID/GID 593, home /var/db/orca.
 
 ### sysutils/knotify
 
-A file watcher (the notify crate, kqueue on FreeBSD) that Elixir
+A file watcher (the notify crate, inotify on FreeBSD, so FreeBSD 15.0 or
+later) that Elixir
 programs run as a port through the knotify_ex library. The library is
 not ported: applications compile it in and depend on this port for the
 binary. `notes/sysutils-knotify.txt` has the details.
@@ -336,11 +351,11 @@ knotify. Their Elixir client, jsonl_port, is not ported.
    `rlim_t`, fixed upstream by oxigraph/oxigraph#2031). When
    Cargo.lock moves to another oxigraph, drop the patch if that release
    has the fix, or remake it for the new version (`make makepatch`).
-   Its `CARGO_UPDATE_ARGS`/`CARGO_INSTALL_ARGS` keep upstream's
-   Cargo.lock, because re-resolving 1.1.0's lock moves bindgen to syn 3
-   (see the notes). yoonka/beamports#8 made the lock stable: drop them
-   when moving to the first tag after 1.1.0, and check the build log
-   after "Updating Cargo.lock" for Updating or Removing lines.
+   The port uses upstream's Cargo.lock as it is, which is stable since
+   1.2.0 (yoonka/beamports#8). After each update, check the build log
+   after "Updating Cargo.lock" for Updating or Removing lines; if the
+   lock moves again, the notes describe the CARGO_UPDATE_ARGS and
+   CARGO_INSTALL_ARGS that 1.1.0 needed.
 3. Run testport. duckport and oxiport compile DuckDB and RocksDB from
    C++ source and take much longer than tantiport.
 
@@ -349,6 +364,6 @@ knotify. Their Elixir client, jsonl_port, is not ported.
 - Every changed port has passed testport. Give the log paths.
 - `git status` (run as the maintainer's user) shows only the intended
   files. Nothing is owned by root, and there is no `work/`.
-- `notes/` is updated.
+- The notes of every changed port that has notes are updated.
 - Write a proposed commit message per port, and list anything left
   open.
