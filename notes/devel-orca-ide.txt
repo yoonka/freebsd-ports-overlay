@@ -66,6 +66,9 @@ Distfiles, all in distinfo, under DIST_SUBDIR orca-ide/<version>:
   1.4.247 it adds foregroundProcessGroup(), tcgetpgrp(3) on the master,
   which orcad uses to find a terminal's foreground job. It is portable
   and works on FreeBSD as is.
+- native/journal-file-lock/main.c and native/provider-exec/provider-exec.c
+  from the release tag, the sources of the two helper programs (since
+  1.4.259, see "Helpers" below).
 
 scripts/post-extract:
 
@@ -78,7 +81,8 @@ scripts/post-extract:
   - out/package.json's version against DISTVERSION;
   - the .deb's node-pty version against NODE_PTY_VERSION;
   - the list of per-platform files in targets/linux-x64-glibc, where a
-    new entry would most likely be a new native addon.
+    new entry would most likely be a new native addon or helper;
+- copies the helpers' sources to ${WRKDIR}/native/<helper>/.
 
 Leaving out the template's marker files (.runtime-node, .server-target)
 makes orcad run "unpackaged" on the system node instead of demanding
@@ -96,6 +100,36 @@ N-API.
 
 ripgrep: orcad runs <install dir>/ripgrep/<platform>-<arch>/rg. This is
 a symlink to textproc/ripgrep's rg.
+
+Helpers. Since 1.4.259 every target also ships two small C programs from
+upstream's native/ directory, which do-build compiles with ${CC}:
+
+- orca-provider-exec (native/provider-exec): a supervisor for the agent
+  CLIs (Claude Code, Codex, ...) of orcad's chats and bots. It runs the
+  CLI in a session of its own behind a start gate, with a watcher that
+  stops the whole process group when orcad asks or dies. orcad looks for
+  it at <install dir>/bin/orca-provider-exec (its host adapter reports a
+  packaged install with the install directory as app path). orcad uses
+  it only where it can read a boot ID (Linux's
+  /proc/sys/kernel/random/boot_id, macOS's kern.bootsessionuuid); on
+  FreeBSD it falls back to its own supervisor in node (`node -e`,
+  ORCA_PROVIDER_SUPERVISOR_SPEC), as in 1.4.258. So the helper is
+  installed where upstream expects it but not used yet (see "Open
+  issues"). The source builds on FreeBSD unchanged: besides Linux and
+  macOS branches it has a generic POSIX one, used here. Like macOS it has
+  no subreaper (Linux uses PR_SET_CHILD_SUBREAPER; FreeBSD's
+  procctl(PROC_REAP_ACQUIRE) would be the equivalent), so init reaps the
+  watcher. The Linux-only --exec-without-inherited-fds mode is not
+  compiled, and orcad only uses it on Linux.
+- journal-file-lock (native/journal-file-lock): holds SQLite's lock bytes
+  on a database file, without opening it with SQLite, while orcad retires
+  a legacy journal database; with "--check" it says whether the file is
+  eligible (a single-link regular file on a local disk). orcad looks for it
+  beside node-pty's pty.node. Upstream knows Linux and macOS only: it
+  includes <sys/vfs.h> and compares Linux file system magic numbers.
+  files/extra-patch-native_journal-file-lock_main.c takes <sys/mount.h>
+  and f_fstypename on FreeBSD, as on macOS, and accepts ufs and zfs. The
+  patch is outside WRKSRC, so post-patch applies it from ${WRKDIR}.
 
 
 FreeBSD fixes
@@ -122,9 +156,9 @@ FreeBSD fixes
    - every column gets its own -o;
    - -e becomes -A.
    This covers argument vectors and plain `ps ...` command strings.
-   The 1.4.258 bundles hold 59 column lists of this shape (56 in
-   1.4.253, 55 in 1.4.247, 51 in 1.4.245), in minified code that
-   changes with every release.
+   The 1.4.268 bundles hold 59 column lists of this shape, as 1.4.258
+   did (56 in 1.4.253, 55 in 1.4.247, 51 in 1.4.245), in minified code
+   that changes with every release.
    Patching each site would mean as many fragile patterns.
 
    bin/orca-ide loads the shim for orcad and for the CLI. orcad's
@@ -254,8 +288,8 @@ How to update
    node-pty@<version>.patch matches the printed patch_hash.
 3. testport. It stops at the first assumption that no longer holds:
    - post-extract: template schema, versions, per-platform files;
-   - the node-pty patch failing to apply, or the addons failing to
-     build;
+   - the node-pty patch or journal-file-lock's FreeBSD patch failing to
+     apply, or the addons or helpers failing to build;
    - check-ps-calls.cjs: new ways of calling ps;
    - check-plist: a new or removed server file. Only the web client and
      the mobile web bundle's hashed assets and catalogs are listed
@@ -271,6 +305,45 @@ enough; keep the desktop clients on a close version.
 
 Tested
 ------
+
+With 1.4.268, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass. check-ps-calls.cjs: 59 ps
+  column lists, all rewritten. pkg-plist gained the two helpers and nine
+  server workers (agent-identity, bots-db, codex-project-trust,
+  google-pdf-text, journal-sql-reader, journal-sql-worker,
+  orchestration-reader, runtime-environment-store and usage-scan), all
+  plain JavaScript.
+- node-pty's patch changed in JavaScript only (loadNativeModule reports
+  real load failures and retries on Windows).
+- The helpers, built on the host with -Wall -Wextra (no warnings) and
+  driven directly:
+  - journal-file-lock with node:sqlite: "eligible" on ZFS and on UFS,
+    exit 4 on tmpfs; while it holds the lock SQLite can neither read nor
+    write ("database is locked") and a second holder exits 6; "retire"
+    removes the database and its -wal and -shm and prints "retired"; end
+    of input releases the lock and keeps the file.
+  - orca-provider-exec through its fd 3-7 protocol, as orcad drives it:
+    status line, gate, CLI stdin on fd 7, then "term" (and, separately,
+    closing the owner socket) stopped the CLI's process group, background
+    job included; the outcome and "group-absent" frames arrived.
+- In a throwaway vnet jail without internet access (a clone of the 15.1
+  build jail), from the package and its run dependencies, orcad bound to
+  127.0.0.1:
+  - service start: daemon(8) as root, orcad and its terminal daemon as
+    orca; "Orca server ready" and "Terminal daemon: live -- PTY self-test
+    passed (pty-spawn: healthy)".
+  - `service orca_ide pair` prints both links.
+  - CLI: `status`, `repo add`, `terminal create` with a command that
+    starts a background job, `terminal read` and `terminal close`, which
+    killed the job.
+  - `agent launch --agent claude --surface chat`, with a stand-in
+    `claude` script that logs how it is started: orcad ran its probes and
+    the chat session's CLI under its node supervisor, not
+    orca-provider-exec (no FreeBSD boot ID, see "Helpers").
+  - Then devel/orca-server installed in its place on the same profile
+    (see notes/devel-orca-server.txt).
 
 With 1.4.258_1 (the rc script on daemon -u), on FreeBSD 15.1 amd64:
 
@@ -396,6 +469,11 @@ Open issues
 - orcad cannot tell a reused pid from its own after a reboot when it
   checks profile-state ownership (no FreeBSD process start identity).
   This is rare, and a restart clears it.
+- For the same reason (no boot ID it can read on FreeBSD) orcad
+  supervises agent CLIs with its node fallback instead of the
+  orca-provider-exec built here. FreeBSD has a boot ID, kern.boot_id, but
+  as 16 raw bytes, while orcad expects UUID text; adding it upstream,
+  formatted as a UUID, would switch FreeBSD to the helper.
 - FreeBSD's sun_path is 104 bytes, not Linux's 108. A terminal-daemon
   socket path of 104-107 bytes would fail instead of falling back to
   /tmp. Only very long profile paths are affected.
@@ -406,5 +484,5 @@ Open issues
   links are only written by `service orca_ide pair` or with
   orca_ide_pairing=YES.
 - Worth sending upstream: the ps -o fix, a FreeBSD machine and boot
-  identity (kern.hostuuid, kern.boottime), and freebsd in the orcad
-  target list or a "system Node" mode.
+  identity (kern.hostuuid, kern.boottime), journal-file-lock's FreeBSD
+  branch, and freebsd in the orcad target list or a "system Node" mode.

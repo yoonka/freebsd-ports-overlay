@@ -1,17 +1,18 @@
 #!/bin/sh
 #
 # Assemble the server from upstream's Linux .deb, and lay out the sources of
-# the two native addons the port builds.
+# the two native addons and the two helper programs the port builds.
 #
 # What is taken from the .deb is upstream's own server package, the "orcad
 # template" that the desktop app deploys to Linux, macOS and Windows hosts
 # (resources/orcad-template), and the browser client (the renderer's web
 # build). Both are plain JavaScript, HTML and assets. The template's
 # per-platform parts live under targets/<platform>/: the node-pty and
-# @parcel/watcher addons, ripgrep, and two marker files that name the Node
-# binary upstream pins. None of them is used. The addons are built in this
-# port, rg comes from textproc/ripgrep, and without the markers orcad runs
-# on www/node24 instead of a pinned Node.
+# @parcel/watcher addons, the helpers orca-provider-exec and
+# journal-file-lock, ripgrep, and two marker files that name the Node binary
+# upstream pins. None of them is used. The addons and helpers are built in
+# this port, rg comes from textproc/ripgrep, and without the markers orcad
+# runs on www/node24 instead of a pinned Node.
 #
 # Every assumption about the layout is checked, and a mismatch is fatal, so
 # that a release which changes it stops the build instead of producing a
@@ -23,7 +24,7 @@ set -e
 
 : "${WRKDIR:?}" "${WRKSRC:?}" "${APPSRC:?}" "${DISTFILES_DIR:?}"
 : "${DISTVERSION:?}" "${NODE_PTY_VERSION:?}" "${PARCEL_WATCHER_VERSION:?}"
-: "${NODE_ADDON_API_VERSION:?}" "${WATCHER_WRKSRC:?}"
+: "${NODE_ADDON_API_VERSION:?}" "${WATCHER_WRKSRC:?}" "${NATIVE_WRKSRC:?}"
 
 fail() {
 	echo "post-extract: $*" >&2
@@ -63,13 +64,17 @@ v=$(version_of "$debdir/$template/node_modules/node-pty/package.json")
 [ "$v" = "$NODE_PTY_VERSION" ] ||
     fail "the .deb ships node-pty $v but NODE_PTY_VERSION is $NODE_PTY_VERSION"
 
-# The only per-platform files the port knows how to replace. A new one is
-# most likely a new native addon, which would need a FreeBSD build too. (The
-# Linux targets' rg is not in the template; the desktop app supplies its own
-# copy when it deploys one.)
+# The only per-platform files the port knows how to replace: the markers,
+# the two addons, and the two helper programs (orca-provider-exec and
+# journal-file-lock) that the port builds from upstream's C sources. A new
+# one is most likely a new native addon or helper, which would need a
+# FreeBSD build too. (The Linux targets' rg is not in the template; the
+# desktop app supplies its own copy when it deploys one.)
 expected='./.runtime-node
 ./.server-target
+./bin/orca-provider-exec
 ./node_modules/@parcel/watcher/watcher.node
+./node_modules/node-pty/build/Release/journal-file-lock
 ./node_modules/node-pty/build/Release/pty.node'
 actual=$(cd "$debdir/$template/targets/linux-x64-glibc" && find . -type f | sort)
 if [ "$actual" != "$expected" ]; then
@@ -109,5 +114,11 @@ done
 # node-pty's tarball carries upstream's prebuilt macOS and Windows addons;
 # make sure nothing can pick them up instead of the one built here.
 rm -rf "$WRKSRC/prebuilds"
+
+# The helpers' C sources, from the release tag (native/<helper>/ upstream).
+for f in journal-file-lock/main.c provider-exec/provider-exec.c; do
+	mkdir -p "$NATIVE_WRKSRC/${f%/*}"
+	cp "$DISTFILES_DIR/native/$f" "$NATIVE_WRKSRC/$f"
+done
 
 cp "$DISTFILES_DIR/LICENSE" "$WRKDIR/LICENSE"

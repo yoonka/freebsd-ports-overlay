@@ -1,6 +1,10 @@
 bin/orca-ide
+lib/orca-ide/agent-identity-worker-entry.js
+lib/orca-ide/bin/orca-provider-exec
+lib/orca-ide/bots-db-worker-entry.js
 lib/orca-ide/claude-conversation-fork-worker-entry.js
 lib/orca-ide/claude-profile-setup-worker-entry.js
+lib/orca-ide/codex-project-trust-worker-entry.js
 lib/orca-ide/command-path-directory-worker-entry.js
 lib/orca-ide/computer-sidecar.js
 lib/orca-ide/computer-use-linux/runtime.py
@@ -8,12 +12,16 @@ lib/orca-ide/computer-use-windows/runtime.ps1
 lib/orca-ide/daemon-entry.js
 lib/orca-ide/foreign-sqlite-reader-entry.js
 lib/orca-ide/freebsd-compat.cjs
+lib/orca-ide/google-pdf-text-worker-entry.js
+lib/orca-ide/journal-sql-reader-entry.js
+lib/orca-ide/journal-sql-worker-entry.js
 lib/orca-ide/native-chat-visuals/.claude-plugin/plugin.json
 lib/orca-ide/native-chat-visuals/skills/orca-chat-visuals/SKILL.md
 lib/orca-ide/node_modules/@linear/sdk/index.js
 lib/orca-ide/node_modules/@parcel/watcher/index.js
 lib/orca-ide/node_modules/@parcel/watcher/watcher.node
 lib/orca-ide/node_modules/emojibase-data/en/shortcodes/emojibase.json
+lib/orca-ide/node_modules/node-pty/build/Release/journal-file-lock
 lib/orca-ide/node_modules/node-pty/build/Release/pty.node
 lib/orca-ide/node_modules/node-pty/lib/conpty_console_list_agent.js
 lib/orca-ide/node_modules/node-pty/lib/eventEmitter2.js
@@ -31,6 +39,7 @@ lib/orca-ide/node_modules/node-pty/lib/worker/conoutSocketWorker.js
 lib/orca-ide/node_modules/node-pty/package.json
 lib/orca-ide/orcad-server.js
 lib/orca-ide/orcad.js
+lib/orca-ide/orchestration-reader-entry.js
 lib/orca-ide/out/cli/index.js
 lib/orca-ide/out/mobile-web/index.html
 lib/orca-ide/out/mobile-web/index.html.br
@@ -41,8 +50,10 @@ lib/orca-ide/port-scan-command-worker-entry.js
 lib/orca-ide/profile-state-backup-worker-entry.js
 lib/orca-ide/profile-state-writer-worker-entry.js
 lib/orca-ide/ripgrep/freebsd-%%NODE_ARCH%%/rg
+lib/orca-ide/runtime-environment-store-worker-entry.js
 lib/orca-ide/session-scanner-service-entry.js
 lib/orca-ide/session-search-worker-entry.js
 lib/orca-ide/stt-worker.js
+lib/orca-ide/usage-scan-worker-entry.js
 lib/orca-ide/worker-thread-child-process-entry.js
 @dir(orca,orca,0750) %%ORCA_HOME%%
