@@ -23,7 +23,7 @@ Overlay: https://github.com/yoonka/freebsd-ports-overlay
 Version
 -------
 
-1.1.0, from the tag v1.1.0 of beamports
+1.2.0, from the tag v1.2.0 of beamports
 (https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
 several programs and their Elixir clients, one directory each, and a
 tag releases all of them at one version. Its four ports
@@ -40,8 +40,12 @@ The port
 --------
 
 - USES=cargo; Makefile.crates generated from upstream's Cargo.lock
-  (171 crates).
+  (164 crates).
 - Tantivy 0.27; it opens indexes written by Tantivy 0.22 (format 6).
+- LIB_DEPENDS on archivers/zstd: cargo.mk sets ZSTD_SYS_USE_PKG_CONFIG
+  for every port with the zstd-sys crate, so tantiport links the system
+  libzstd rather than building the bundled copy. 1.1.0 did not declare
+  it, and stage-qa reported the undeclared library.
 - Installs bin/tantiport.
 - No patches.
 
@@ -49,15 +53,15 @@ The port
 Tested
 ------
 
-With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+With 1.2.0 (the tag v1.2.0 of beamports), on FreeBSD 15.1 amd64 with
 lang/rust 1.99.1:
 
 - poudriere testport: build, stage-qa and check-plist clean; package,
   install and deinstall pass.
 - The binary built by the port, with --jsonl: an upsert was committed
   and a search returned the document's metadata and id.
-- Before the port, from the same source: every operation and error case
-  its README lists, the demo mode, and an index written by Tantivy 0.22,
-  which 0.27 opened, added to and searched.
+- With 1.1.0, before the port, from the same source: every operation
+  and error case its README lists, the demo mode, and an index written
+  by Tantivy 0.22, which 0.27 opened, added to and searched.
 
 Not tested: aarch64 and other architectures.

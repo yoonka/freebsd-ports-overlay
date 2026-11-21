@@ -24,7 +24,7 @@ Overlay: https://github.com/yoonka/freebsd-ports-overlay
 Version
 -------
 
-1.1.0, from the tag v1.1.0 of beamports
+1.2.0, from the tag v1.2.0 of beamports
 (https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
 several programs and their Elixir clients, one directory each, and a
 tag releases all of them at one version. Its four ports
@@ -41,7 +41,7 @@ The port
 --------
 
 - USES=cargo; Makefile.crates generated from upstream's Cargo.lock
-  (180 crates).
+  (164 crates).
 - Oxigraph 0.5.13 compiles RocksDB from the oxrocksdb-sys crate's
   bundled C++ source and generates its bindings with bindgen, so the
   build needs devel/llvm for libclang (LIBCLANG_PATH in CARGO_ENV).
@@ -54,15 +54,15 @@ The port
   https://github.com/oxigraph/oxigraph/pull/2031, which converts with
   u64::try_from on FreeBSD and DragonFly (RLIM_INFINITY is i64::MAX
   there). databases/oxigraph in this overlay patches the same line.
-- CARGO_UPDATE_ARGS=--workspace and CARGO_INSTALL_ARGS=--locked keep
-  upstream's Cargo.lock. bindgen 0.73.2 declares syn ">=2, <4" but
-  passes syn values to prettyplease 0.2, which uses syn 2. Since syn 3
-  is vendored too (for another crate), cargo.mk's "cargo update" and an
-  unlocked "cargo install" move bindgen to syn 3, and it fails to
-  compile (`syn::File: ParseQuote` is not satisfied). Upstream's lock
-  after 1.1.0 (yoonka/beamports#8) pairs bindgen with syn 3 and
-  prettyplease 0.3 and no longer changes when re-resolved, so the next
-  version can drop both settings.
+- Upstream's Cargo.lock is used as it is. Since yoonka/beamports#8
+  (in 1.2.0) it pairs bindgen 0.73.2 with syn 3 and prettyplease 0.3,
+  and re-resolving it against the vendored crates changes nothing: the
+  build log shows "Locking 0 packages" after "Updating Cargo.lock", and
+  "cargo install" rebuilds nothing. 1.1.0's lock paired bindgen with
+  syn 2 and prettyplease 0.2, and needed CARGO_UPDATE_ARGS=--workspace
+  and CARGO_INSTALL_ARGS=--locked to keep it (bindgen declares syn
+  ">=2, <4", so cargo.mk's "cargo update" moved it to the vendored syn
+  3, which prettyplease 0.2 cannot take). 1.2.0 drops both settings.
 
 Oxigraph 0.5 migrates a store written by 0.4 in place on its first
 read-write open; 0.4 cannot open it afterwards.
@@ -71,17 +71,18 @@ read-write open; 0.4 cannot open it afterwards.
 Tested
 ------
 
-With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+With 1.2.0 (the tag v1.2.0 of beamports), on FreeBSD 15.1 amd64 with
 lang/rust 1.99.1:
 
 - poudriere testport: build, stage-qa and check-plist clean; package,
-  install and deinstall pass. Without CARGO_UPDATE_ARGS and
-  CARGO_INSTALL_ARGS (see above) the build fails in bindgen.
+  install and deinstall pass, without CARGO_UPDATE_ARGS and
+  CARGO_INSTALL_ARGS; no Updating or Removing lines follow "Updating
+  Cargo.lock" in the log.
 - The binary built by the port, with --jsonl: an update was committed
-  and a SELECT returned the triple; --version reports 1.1.0.
-- Before the port, from the same source: every operation and error case
-  its README lists, the interactive mode with a GeoSPARQL function and
-  --update-base, and a store written with Oxigraph 0.4, which was
-  migrated and kept its data.
+  and a SELECT returned the triple; --version reports 1.2.0.
+- With 1.1.0, before the port, from the same source: every operation
+  and error case its README lists, the interactive mode with a
+  GeoSPARQL function and --update-base, and a store written with
+  Oxigraph 0.4, which was migrated and kept its data.
 
 Not tested: aarch64 and other architectures.

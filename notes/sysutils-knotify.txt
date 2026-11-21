@@ -27,7 +27,7 @@ Overlay: https://github.com/yoonka/freebsd-ports-overlay
 Version
 -------
 
-1.1.0, from the tag v1.1.0 of beamports. beamports holds several
+1.2.0, from the tag v1.2.0 of beamports. beamports holds several
 programs and their Elixir clients, one directory each, and a tag
 releases all of them at one version. Its four ports (sysutils/knotify,
 databases/duckport, databases/oxiport, databases/tantiport) share the
@@ -38,57 +38,73 @@ own directory (WRKSRC_SUBDIR=${PORTNAME}); LICENSE_FILE is the
 repository's LICENSE one level up. knotify was a repository of its own up to
 v1.0.3, which had the JSON mode only.
 
+What 1.2.0 changed for FreeBSD:
+
+- notify 9.0.0 (was 8.2.0), with its freebsd_inotify feature: knotify
+  watches through inotify(2), which FreeBSD 15.0 added, instead of
+  kqueue. Upstream turns the feature on for every FreeBSD build, since
+  notify picks inotify by itself only in native builds.
+- In recursive mode, the entries of a new directory are no longer lost
+  (yoonka/beamports#7): knotify waits until the new directory is
+  watched, then reports its entries as created (JSON) or sends a
+  rescan of it with reason new_directory (ETF).
+
 
 The port
 --------
 
 - USES=cargo; Makefile.crates generated from upstream's Cargo.lock
-  (73 crates, including the dev-dependency tempfile used by the tests).
+  (54 crates, including the dev-dependency tempfile used by the tests).
+- IGNORE below OSVERSION 1500050, where inotify(2) appeared (the value
+  other ports use for it, e.g. net/gerbera and devel/gamin). The binary
+  imports inotify_init1, inotify_add_watch and inotify_rm_watch at
+  FBSD_1.8. Building from source needs Rust 1.91 or later (notify 9).
 - Installs bin/knotify and, with DOCS, README.md and protocol.md.
-- No patches: notify uses kqueue on FreeBSD (RecommendedWatcher), and
-  the rest is portable Rust (std::os::unix for raw path bytes).
-- pkg-message: the descriptor cost of kqueue, see below.
+- No patches.
+- pkg-message: the inotify watch limit, see below.
 
 
-kqueue
-------
+inotify
+-------
 
-kqueue watches vnodes, so notify opens every file and directory it
-watches. With --recursive that is one descriptor per entry in the
-tree: watching 5000 files in 51 directories, knotify held 5060 open
-descriptors. The default kern.maxfilesperproc scales with RAM; a
-watcher of a large tree on a small machine, or under a login class
-with a low openfiles limit, needs a higher limit. pkg-message says so.
+inotify watches directories: notify adds one watch per directory, and
+events for the files in it arrive through that watch. Watching 5000
+files in 51 directories, knotify held 9 descriptors and 51 watches
+(with kqueue in 1.1.0 it held 5060 descriptors). The limit is per user
+ID, shared by every inotify user of that ID: vfs.inotify.max_user_watches,
+a third of kern.maxvnodes by default (desiredvnodes / 3 in
+sys/kern/vfs_inotify.c). pkg-message says so. Events beyond
+vfs.inotify.max_queued_events (16384 by default) are dropped by the
+kernel; the overflow makes knotify request a whole-root rescan in ETF
+mode.
 
-kqueue reports no rename pairs: a rename shows up as a remove and a
-create (JSON), or as both paths in one batch (ETF). Upstream's README
-lists a --backend option; it is parsed but ignored (the backend choice
-is commented out), and notify always picks kqueue here.
-
-A new directory is watched only once its creation has been reported,
-so a file created in it immediately afterwards can go unreported: in
-the ETF check below, a file written straight after its directory was
-created appeared in 1 of 4 runs, while the directory itself appeared in
-every run. A consumer has to scan a directory reported as new.
+inotify reports rename pairs: JSON mode emits RENAME_BOTH with both
+paths (with kqueue a rename was a remove and a create). Upstream's
+README lists a --backend option; it is parsed but ignored (the backend
+choice is commented out).
 
 
 Tested
 ------
 
-With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+With 1.2.0 (the tag v1.2.0 of beamports), on FreeBSD 15.1 amd64 with
 lang/rust 1.99.1:
 
 - poudriere testport: build, stage-qa and check-plist clean; package,
   install and deinstall pass.
-- `make test`: upstream's 10 unit tests and its 2 protocol tests
-  (hint mode reports ready and exits when stdin closes) pass.
-- JSON mode: create, modify, mkdir and a file inside the new
-  directory, rename (a create and a remove) and remove were all
-  reported.
+- `make test`: upstream's 12 unit tests and its 4 protocol tests pass,
+  including the two new ones for entries made before their directory
+  is watched (JSON and ETF).
+- JSON mode, with the binary the port stages: create, modify, mkdir
+  with a file written into it at once, mkdir -p of two levels with a
+  file at the bottom, rename (RENAME_BOTH) and remove were all
+  reported. Creating a directory tree and two files in one go was
+  reported completely in 10 of 10 runs (1.1.0 with kqueue: a file
+  written straight after its directory appeared in 1 of 4 runs).
 - ETF mode, driven from an Erlang port with {packet, 4} as KnotifyEx
-  does: "ready", then after a credit one "paths" batch with the
-  relative paths of a new file, a new directory and both ends of a
-  rename; the file written into the new directory right after it was
-  created appeared in 1 of 4 runs (see kqueue above).
+  does: "ready", then after a credit a "rescan" of the new directory
+  with reason new_directory, and one "paths" batch with the new
+  directory, the new file and both ends of a rename.
+- With OSVERSION=1404000 the port is IGNOREd.
 
 Not tested: aarch64, and long runs against large trees.

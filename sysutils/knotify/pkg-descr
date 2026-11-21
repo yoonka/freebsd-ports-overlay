@@ -8,4 +8,5 @@ one root and byte-exact, as length-prefixed Erlang terms, with credits
 for flow control and rescan requests when events are lost. KnotifyEx is
 the Elixir library that drives it.
 
-It is built on the notify crate, which uses kqueue(2) on FreeBSD.
+It is built on the notify crate and watches through inotify(2) on
+FreeBSD, so it needs FreeBSD 15.0 or later.

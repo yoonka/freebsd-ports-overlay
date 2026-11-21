@@ -1,11 +1,11 @@
 [
 { type: install
   message: <<EOM
-knotify watches through kqueue(2), which needs an open file descriptor
-for every file and directory it watches: with --recursive, one per
-entry in the tree. Keep the per-process limit (kern.maxfilesperproc,
-and the openfiles limit of the login class the watcher runs under)
-above the number of entries in the largest tree it watches.
+knotify watches through inotify(2), which takes one watch for every
+directory it watches: with --recursive, one per directory in the tree.
+All inotify users of one user ID share the limit
+vfs.inotify.max_user_watches, a third of kern.maxvnodes by default.
+Keep it above the number of directories in the trees that user watches.
 EOM
 }
 ]

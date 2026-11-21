@@ -23,7 +23,7 @@ Overlay: https://github.com/yoonka/freebsd-ports-overlay
 Version
 -------
 
-1.1.0, from the tag v1.1.0 of beamports
+1.2.0, from the tag v1.2.0 of beamports
 (https://github.com/yoonka/beamports, BSD-3-Clause). beamports holds
 several programs and their Elixir clients, one directory each, and a
 tag releases all of them at one version. Its four ports
@@ -40,8 +40,8 @@ The port
 --------
 
 - USES=cargo; Makefile.crates generated from upstream's Cargo.lock
-  (146 crates).
-- DuckDB 2.0.0 is compiled from the duckdb crate's bundled C++ source
+  (143 crates).
+- DuckDB 2.0.1 is compiled from the duckdb crate's bundled C++ source
   (libduckdb-sys "bundled"), so nothing is downloaded at build time and
   no databases/duckdb is needed. Upstream turns the crate's default
   features off: they only add an HTTP/TLS stack for downloading a
@@ -50,22 +50,23 @@ The port
 - No patches.
 
 DuckDB 2.0 opens files written by DuckDB 1.x and keeps their format;
-new files get the 2.0 format, which 1.x cannot read.
+new files get the 2.0 format, which 1.x cannot read. DuckDB 2.0.1 (in
+1.2.0) is a bug-fix release with the same storage format as 2.0.
 
 
 Tested
 ------
 
-With 1.1.0 (the tag v1.1.0 of beamports), on FreeBSD 15.1 amd64 with
+With 1.2.0 (the tag v1.2.0 of beamports), on FreeBSD 15.1 amd64 with
 lang/rust 1.99.1:
 
 - poudriere testport: build, stage-qa and check-plist clean; package,
   install and deinstall pass.
 - The binary built by the port, with --jsonl: a batch creating a table
   and inserting a row with a parameter was committed, and a query read
-  the row back; version() reports v2.0.0.
-- Before the port, from the same source: upstream's test, and every
-  operation and error case its README lists, including a database file
-  written by DuckDB 1.4.
+  the row back; version() reports v2.0.1.
+- With 1.1.0, before the port, from the same source: upstream's test,
+  and every operation and error case its README lists, including a
+  database file written by DuckDB 1.4.
 
 Not tested: aarch64 and other architectures.

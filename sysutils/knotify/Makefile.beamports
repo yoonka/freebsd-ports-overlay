@@ -8,7 +8,7 @@
 # distinfo.
 
 DISTVERSIONPREFIX=	v
-DISTVERSION=	1.1.0
+DISTVERSION=	1.2.0
 
 WWW=		https://github.com/yoonka/beamports
 
