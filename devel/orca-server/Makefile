@@ -1,14 +1,19 @@
 PORTNAME=	orca-server
-DISTVERSION=	1.4.258
+DISTVERSION=	1.4.268
 CATEGORIES=	devel
 MASTER_SITES=	https://github.com/stablyai/orca/releases/download/v${DISTVERSION}/:server \
 		https://registry.npmjs.org/node-pty/-/:pty \
 		https://registry.npmjs.org/@parcel/watcher/-/:watcher \
-		https://registry.npmjs.org/node-addon-api/-/:napi
+		https://registry.npmjs.org/node-addon-api/-/:napi \
+		https://raw.githubusercontent.com/stablyai/orca/v${DISTVERSION}/:raw
 DISTFILES=	${SERVER_TARBALL}:server \
 		node-pty-${NODE_PTY_VERSION}.tgz:pty \
 		watcher-${PARCEL_WATCHER_VERSION}.tgz:watcher \
-		node-addon-api-${NODE_ADDON_API_VERSION}.tgz:napi
+		node-addon-api-${NODE_ADDON_API_VERSION}.tgz:napi \
+		native/journal-file-lock/main.c:raw \
+		native/provider-exec/provider-exec.c:raw
+# The two C programs are helpers the server runs, built here in place of
+# the Linux binaries in the tarball.
 # Upstream builds node-pty with a patch of its own; the server's node-pty
 # JavaScript in the tarball is already patched, so the addon has to be too.
 PATCH_SITES=	https://raw.githubusercontent.com/stablyai/orca/v${DISTVERSION}/config/patches/
@@ -37,7 +42,7 @@ USE_RC_SUBR=	orca_server
 CONFLICTS_INSTALL=	orca-ide
 
 # The JavaScript comes from the linux-x64 tarball on every architecture: it
-# is the same everywhere, and the two native addons are built here.
+# is the same everywhere, and the native addons and helpers are built here.
 ONLY_FOR_ARCHS=		aarch64 amd64
 ONLY_FOR_ARCHS_REASON=	not tested elsewhere; aarch64 is expected to work but untested
 
@@ -51,6 +56,8 @@ NODE_ADDON_API_VERSION=	7.1.1
 SERVER_TARBALL=	orca-server-linux-x64.tar.gz
 WRKSRC=		${WRKDIR}/package
 WATCHER_WRKSRC=	${WRKDIR}/watcher
+# The helpers' sources, laid out by post-extract as native/<helper>/.
+NATIVE_WRKSRC=	${WRKDIR}/native
 # The server tree assembled by post-extract from the tarball.
 APPSRC=		${WRKDIR}/app
 APPDIR=		${PREFIX}/lib/${PORTNAME}
@@ -68,7 +75,8 @@ SCRIPTS_ENV+=	APPSRC=${APPSRC} DISTFILES_DIR=${_DISTDIR} \
 		DISTVERSION=${DISTVERSION} NODE_PTY_VERSION=${NODE_PTY_VERSION} \
 		PARCEL_WATCHER_VERSION=${PARCEL_WATCHER_VERSION} \
 		NODE_ADDON_API_VERSION=${NODE_ADDON_API_VERSION} \
-		SERVER_TARBALL=${SERVER_TARBALL} WATCHER_WRKSRC=${WATCHER_WRKSRC}
+		NATIVE_WRKSRC=${NATIVE_WRKSRC} SERVER_TARBALL=${SERVER_TARBALL} \
+		WATCHER_WRKSRC=${WATCHER_WRKSRC}
 
 SUB_FILES=	orca-ide pkg-message
 SUB_LIST=	APPDIR=${APPDIR} NODE=${LOCALBASE}/bin/node ORCA_HOME=${ORCA_HOME} \
@@ -79,12 +87,26 @@ PLIST_SUB=	NODE_ARCH=${NODE_ARCH} ORCA_HOME=${ORCA_HOME}
 find-new-version:
 	@${SH} ${SCRIPTDIR}/find-new-version ${.CURDIR}/Makefile
 
+# The helpers' sources are not under WRKSRC, where the framework applies
+# patches.
+post-patch:
+	cd ${WRKDIR} && ${PATCH} --forward --quiet -E -p0 \
+		< ${FILESDIR}/extra-patch-native_journal-file-lock_main.c
+
 do-build:
 	for d in ${WRKSRC} ${WATCHER_WRKSRC}; do \
 		cd $${d} && ${SETENV} ${MAKE_ENV} PYTHON=${PYTHON_CMD} \
 		${LOCALBASE}/bin/node ${NODE_GYP} rebuild --release \
 		--nodedir=${LOCALBASE} --jobs=${MAKE_JOBS_NUMBER} || exit 1; \
 	done
+	# The helpers: journal-file-lock holds an SQLite database's lock while
+	# orcad retires it, and orca-provider-exec supervises agent CLIs.
+	${CC} ${CFLAGS} ${LDFLAGS} \
+		-o ${NATIVE_WRKSRC}/journal-file-lock/journal-file-lock \
+		${NATIVE_WRKSRC}/journal-file-lock/main.c
+	${CC} ${CFLAGS} ${LDFLAGS} \
+		-o ${NATIVE_WRKSRC}/provider-exec/orca-provider-exec \
+		${NATIVE_WRKSRC}/provider-exec/provider-exec.c
 	# Fail here if a release calls ps(1) in a way freebsd-compat.cjs does not
 	# rewrite.
 	${LOCALBASE}/bin/node ${FILESDIR}/check-ps-calls.cjs \
@@ -98,6 +120,13 @@ do-install:
 		${STAGEDIR}${APPDIR}/node_modules/node-pty/build/Release
 	${INSTALL_LIB} ${WATCHER_WRKSRC}/build/Release/watcher.node \
 		${STAGEDIR}${APPDIR}/node_modules/@parcel/watcher
+	# Where orcad looks for them: journal-file-lock beside pty.node, and
+	# orca-provider-exec in bin/ under its install directory.
+	${INSTALL_PROGRAM} ${NATIVE_WRKSRC}/journal-file-lock/journal-file-lock \
+		${STAGEDIR}${APPDIR}/node_modules/node-pty/build/Release
+	@${MKDIR} ${STAGEDIR}${APPDIR}/bin
+	${INSTALL_PROGRAM} ${NATIVE_WRKSRC}/provider-exec/orca-provider-exec \
+		${STAGEDIR}${APPDIR}/bin
 	${INSTALL_DATA} ${FILESDIR}/freebsd-compat.cjs ${STAGEDIR}${APPDIR}
 	# orcad runs the rg it finds at ripgrep/<platform>-<arch>/rg in its
 	# install directory; give it the system one.

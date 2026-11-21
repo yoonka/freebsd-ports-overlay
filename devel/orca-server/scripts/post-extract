@@ -1,15 +1,17 @@
 #!/bin/sh
 #
 # Assemble the server from upstream's server-only Linux tarball, and lay out
-# the sources of the two native addons the port builds.
+# the sources of the two native addons and the two helper programs the port
+# builds.
 #
 # The tarball holds orcad/, upstream's server package: plain JavaScript and
 # assets, the same files the desktop app deploys to remote hosts, merged
 # with the parts for one Linux target: the node-pty and @parcel/watcher
-# addons, a ripgrep binary, and three marker files that name the Node binary
-# upstream pins and the build. Beside it are that pinned Node (runtimes/),
-# a launcher (bin/orca-ide) and the selection entry of the desktop CLI
-# (out/main/). None of those is used. The addons are built in this port, rg
+# addons, the helpers orca-provider-exec and journal-file-lock, a ripgrep
+# binary, and three marker files that name the Node binary upstream pins and
+# the build. Beside it are that pinned Node (runtimes/), a launcher
+# (bin/orca-ide) and the selection entry of the desktop CLI (out/main/).
+# None of those is used. The addons and helpers are built in this port, rg
 # comes from textproc/ripgrep, the launcher is the port's own, and without
 # the markers orcad runs on www/node24 instead of a pinned Node.
 #
@@ -24,6 +26,7 @@ set -e
 : "${WRKDIR:?}" "${WRKSRC:?}" "${APPSRC:?}" "${DISTFILES_DIR:?}"
 : "${DISTVERSION:?}" "${NODE_PTY_VERSION:?}" "${PARCEL_WATCHER_VERSION:?}"
 : "${NODE_ADDON_API_VERSION:?}" "${WATCHER_WRKSRC:?}" "${SERVER_TARBALL:?}"
+: "${NATIVE_WRKSRC:?}"
 
 fail() {
 	echo "post-extract: $*" >&2
@@ -59,9 +62,13 @@ v=$(version_of "$orcad/node_modules/node-pty/package.json")
 [ "$v" = "$NODE_PTY_VERSION" ] ||
     fail "the tarball ships node-pty $v but NODE_PTY_VERSION is $NODE_PTY_VERSION"
 
-# The only binaries the port knows how to replace. A new one is most likely
-# a new native addon, which would need a FreeBSD build too.
-expected='./node_modules/@parcel/watcher/watcher.node
+# The only binaries the port knows how to replace: the two addons, rg, and
+# the two helper programs that the port builds from upstream's C sources. A
+# new one is most likely a new native addon or helper, which would need a
+# FreeBSD build too.
+expected='./bin/orca-provider-exec
+./node_modules/@parcel/watcher/watcher.node
+./node_modules/node-pty/build/Release/journal-file-lock
 ./node_modules/node-pty/build/Release/pty.node
 ./ripgrep/linux-x64/rg'
 actual=$(cd "$orcad" && find . -type f -exec sh -c '
@@ -86,7 +93,7 @@ done
 mkdir -p "$APPSRC"
 (cd "$orcad" && tar -cf - --exclude ./.runtime-node \
     --exclude ./.server-target --exclude ./.version --exclude ./ripgrep \
-    --exclude ./node_modules/node-pty/build \
+    --exclude ./bin/orca-provider-exec --exclude ./node_modules/node-pty/build \
     --exclude ./node_modules/@parcel/watcher/watcher.node .) |
     (cd "$APPSRC" && tar -xf -)
 
@@ -110,3 +117,9 @@ done
 # node-pty's tarball carries upstream's prebuilt macOS and Windows addons;
 # make sure nothing can pick them up instead of the one built here.
 rm -rf "$WRKSRC/prebuilds"
+
+# The helpers' C sources, from the release tag (native/<helper>/ upstream).
+for f in journal-file-lock/main.c provider-exec/provider-exec.c; do
+	mkdir -p "$NATIVE_WRKSRC/${f%/*}"
+	cp "$DISTFILES_DIR/native/$f" "$NATIVE_WRKSRC/$f"
+done

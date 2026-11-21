@@ -61,8 +61,9 @@ Distfiles, all in distinfo, under DIST_SUBDIR orca-server/<version>:
   per-version DIST_SUBDIR. upstream publishes its SHA-256 in
   orca-server-sha256sums.txt, which find-new-version prints.
 - node-pty-1.1.0.tgz, watcher-2.5.6.tgz and node-addon-api-7.1.1.tgz
-  from the npm registry, and node-pty@1.1.0.patch from the release tag,
-  exactly as in devel/orca-ide.
+  from the npm registry, and node-pty@1.1.0.patch,
+  native/journal-file-lock/main.c and native/provider-exec/provider-exec.c
+  from the release tag, exactly as in devel/orca-ide.
 - The LICENSE comes from the tarball.
 
 The tarball holds:
@@ -72,7 +73,9 @@ The tarball holds:
   linux-x64-glibc target's files (the node-pty and @parcel/watcher
   addons and the markers .runtime-node and .server-target, also
   identical to the .deb's), a Linux ripgrep under ripgrep/linux-x64/,
-  and a .version marker;
+  and a .version marker. Since 1.4.259 the target's files also include
+  the helpers bin/orca-provider-exec and
+  node_modules/node-pty/build/Release/journal-file-lock;
 - runtimes/: the Node binary upstream pins;
 - bin/orca-ide: a launcher for that Node;
 - out/main/orcad/orcad-local-serve-selection-entry.js, used by the
@@ -85,13 +88,14 @@ scripts/post-extract:
   Node, the bulk of the tarball;
 - installs orcad/ without the three markers, the Linux binaries and
   ripgrep's licences;
+- copies the helpers' sources to ${WRKDIR}/native/<helper>/;
 - fails the build if any of its assumptions changes:
   - VERSION names another release or another target;
   - out/package.json's version against DISTVERSION;
   - the tarball's node-pty version against NODE_PTY_VERSION;
-  - the ELF files in orcad/ against the three it replaces (pty.node,
-    watcher.node, rg), where a new entry would most likely be a new
-    native addon;
+  - the ELF files in orcad/ against the five it replaces (pty.node,
+    watcher.node, rg, orca-provider-exec, journal-file-lock), where a new
+    entry would most likely be a new native addon or helper;
   - any of the three markers missing.
 
 All three markers have to go. orcad.js treats any one of .runtime-node,
@@ -100,12 +104,14 @@ place and the other two removed it refuses to start ("The bundled Orca
 runtime target is missing"). Without any of them it runs "unpackaged"
 on the system node, orcad's own path (orcad-bundled-runtime.ts).
 
-do-build, do-install, ripgrep (a symlink to textproc/ripgrep's rg) and
-the ps check are as in devel/orca-ide. post-install lists only the
+do-build, do-install, the helpers (built from upstream's C sources, with
+journal-file-lock's FreeBSD patch), ripgrep (a symlink to textproc/ripgrep's
+rg) and the ps check are as in devel/orca-ide. post-install lists only the
 mobile web bundle's hashed assets and catalogs; there is no web client.
 
-files/orca-ide.in, files/freebsd-compat.cjs and files/check-ps-calls.cjs
-are identical to devel/orca-ide's. The launcher passes --web-client-root
+files/orca-ide.in, files/freebsd-compat.cjs, files/check-ps-calls.cjs and
+files/extra-patch-native_journal-file-lock_main.c are identical to
+devel/orca-ide's. The launcher passes --web-client-root
 only when web/web-index.html is installed, and gets the rc script's name
 from SUB_LIST. files/orca_server.in is devel/orca-ide's orca_ide.in with
 the names changed. Keep them in step when either port changes.
@@ -131,8 +137,9 @@ How to update
 2. makesum. Check distinfo's SHA256 for node-pty@<version>.patch and for
    orca-server-linux-x64.tar.gz against the printed values.
 3. testport. It stops at the first assumption that no longer holds:
-   post-extract's checks, the node-pty patch or the addon builds,
-   check-ps-calls.cjs, and check-plist.
+   post-extract's checks, the node-pty patch or journal-file-lock's
+   FreeBSD patch, the addon and helper builds, check-ps-calls.cjs, and
+   check-plist.
 4. Smoke test in a jail: "PTY self-test passed" in the readiness lines,
    `service orca_server pair` prints the pairing link, and closing a
    terminal kills its background jobs.
@@ -143,6 +150,27 @@ shared files stay in step.
 
 Tested
 ------
+
+With 1.4.268, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
+
+- poudriere testport: build, stage-qa and check-plist clean;
+  package, install and deinstall pass. check-ps-calls.cjs: 59 ps
+  column lists, all rewritten. pkg-plist gained the same two helpers and
+  nine workers as devel/orca-ide. The tarball's orcad/ holds the same
+  new files as the .deb's template.
+- The helpers were tested directly as described in
+  notes/devel-orca-ide.txt.
+- In a throwaway vnet jail without internet access, after devel/orca-ide
+  1.4.268 was removed, from the package and its run dependencies, orcad
+  bound to 127.0.0.1:
+  - service start: "Orca server ready" and "Terminal daemon: live --
+    PTY self-test passed (pty-spawn: healthy)".
+  - `service orca_server pair` prints the pairing link.
+  - The profile orca-ide had left in /var/db/orca/.orca was taken over
+    (the repository added there was still listed).
+  - CLI: `status`, `terminal create` with a command that starts a
+    background job, `terminal read` and `terminal close`, which killed
+    the job.
 
 With 1.4.258, on FreeBSD 15.1 amd64 with www/node24 24.22.1:
 
