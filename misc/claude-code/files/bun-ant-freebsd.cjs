@@ -8,20 +8,23 @@
 
 const fs = require('fs');
 
-// Text assets. The skills and docs the bundle does not compress, and a few
-// script templates shipped as skill references, are loaded through
-// import.meta.require: `var s = require("./SKILL-0vb5xk0r.md")`, then used as
-// a string. Inside Anthropic's executable that returns the contents of the
-// file. Stock Bun instead renders a .md to HTML, returns a .txt as a module
-// namespace ({ default: ... }), and runs a .mjs -- so every bundled skill
-// prompt comes out as "[object Module]". Loading them here as a module whose
-// "module.exports" export is the text makes require() return the plain
-// string again. Only the content-hashed assets beside this file are matched;
-// that is how upstream names them, and it keeps the user's own files and the
-// bundle's real modules out of it.
+// Text assets. The skills and docs the bundle does not compress, a few
+// script templates shipped as skill references, and (since 2.1.330) the
+// template of the rm stand-in that the shell's rm guard writes out are
+// loaded through import.meta.require:
+// `var s = require("./SKILL-0vb5xk0r.md")`, then used as a string. Inside
+// Anthropic's executable that returns the contents of the file. Stock Bun
+// instead renders a .md to HTML, returns a .txt as a module namespace
+// ({ default: ... }), runs a .mjs and returns the path of a .sh -- so every
+// bundled skill prompt comes out as "[object Module]", and the rm stand-in
+// as a path. Loading them here as a module whose "module.exports" export is
+// the text makes require() return the plain string again. Only the
+// content-hashed assets beside this file are matched; that is how upstream
+// names them, and it keeps the user's own files and the bundle's real
+// modules out of it.
 const assetRE = new RegExp('^' +
     __dirname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-    '/[^/]+-[0-9a-z]{8}\\.(md|txt|mjs)$');
+    '/[^/]+-[0-9a-z]{8}\\.(md|txt|mjs|sh)$');
 
 Bun.plugin({
 	name: 'claude-code-text-assets',

@@ -14,9 +14,8 @@ const dir = process.argv[2];
 
 require(path.join(dir, 'bun-ant-freebsd.cjs'));
 
-// Absent on purpose. The bundle calls setJITPolicy through ?.(), falls back
-// to plain fetch() without FetchSession, asks for the memory pressure level
-// and (since 2.1.316) ttyName on macOS only, and for the sandbox deny-entries
+// Absent on purpose. The bundle asks for the memory pressure level and
+// (since 2.1.316) ttyName on macOS only, and for the sandbox deny-entries
 // helper (since 2.1.301) and the folder security and process list helpers
 // (since 2.1.316) on Windows only. posixFsAt (since 2.1.316) is checked for
 // before use and the path-based calls are used without it.
@@ -26,18 +25,21 @@ require(path.join(dir, 'bun-ant-freebsd.cjs'));
 // isVmContextGlobal (since 2.1.319) is asked, through ?.(), only about an
 // object vm.isContext() does not recognise as a context's global; stock Bun's
 // isContext() does, which is checked below.
+// stringifyToBytes and stringifyToBytesFallbacks (since 2.1.330) serialise an
+// API request body straight to bytes. The bundle checks for both before use
+// and otherwise sends the body as it always has.
 const absent = new Set([
-	'FetchSession',
 	'ant.isVmContextGlobal',
 	'ant.memoryPressureLevel',
 	'ant.posixFsAt',
+	'ant.stringifyToBytes',
+	'ant.stringifyToBytesFallbacks',
 	'ant.ttyName',
 	'ant.windowsFolderSecurity',
 	'ant.windowsProcessCreationTime',
 	'ant.windowsProcessList',
 	'ant.windowsSandboxDeniesArg',
 	'ant.withThreadWorkingDirectory',
-	'unsafe.setJITPolicy',
 ]);
 
 const ref = /(?<![\w$.])Bun\??\.([A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)?)/g;

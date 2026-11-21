@@ -1,5 +1,5 @@
 PORTNAME=	claude-code
-DISTVERSION=	2.1.325
+DISTVERSION=	2.1.330
 CATEGORIES=	misc # machine-learning
 
 MAINTAINER=	yuri@FreeBSD.org
@@ -119,6 +119,8 @@ post-install:
 	#                  with stable names (bin, cli, wrapper) stay in pkg-plist.
 	#   helper Python - <name>-<8 char hash>.py, since 2.1.282, so far only in
 	#                  the zstd spelling; both are matched, as for the docs.
+	#   helper shell - <name>-<8 char hash>.sh, since 2.1.330: the template
+	#                  of the rm guard's stand-in for rm.
 	# Everything else upstream ships has a stable name and stays in pkg-plist,
 	# where check-plist can still catch additions and removals.
 	cd ${STAGEDIR}${PREFIX} && \
@@ -127,7 +129,8 @@ post-install:
 		-o -name '*-????????.md' -o -name '*-????????.txt' \
 		-o -name '*-????????.md.zst' -o -name '*-????????.txt.zst' \
 		-o -name '*-????????.mjs' \
-		-o -name '*-????????.py' -o -name '*-????????.py.zst' \) \
+		-o -name '*-????????.py' -o -name '*-????????.py.zst' \
+		-o -name '*-????????.sh' \) \
 		>> ${TMPPLIST}
 	# Fail here rather than at run time when a release starts using a Bun
 	# API that stock Bun and bun-ant-freebsd.cjs do not provide.

@@ -73,7 +73,12 @@ What to do when a step fails:
   check-plist: orphaned/missing    Add or remove the stable-named file in
                                    pkg-plist; if it is a new kind of
                                    content-hashed file, add a pattern to
-                                   post-install instead.
+                                   post-install instead. If the bundle
+                                   loads it with import.meta.require and
+                                   uses it as text (as the rm stand-in
+                                   .sh of 2.1.330), also add its
+                                   extension to the text-asset hook in
+                                   bun-ant-freebsd.cjs.
   smoke test: blank TUI            Bun.ant.CellSegmenter contract changed:
                                    look for a newer clawgod commit touching
                                    src/shared/bun-ant-shim.cjs, move

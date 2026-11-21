@@ -3,7 +3,7 @@ misc/claude-code: run the extracted bundle on FreeBSD's own Bun
 
 Builds on attachment 275119 (bug 298047) and runs the JavaScript it
 extracts from the Linux executable on stock Bun instead of node. The
-runtime is lang/bun 1.4.4, switched to the official FreeBSD release
+runtime is lang/bun 1.4.5, switched to the official FreeBSD release
 binaries (see the notes for lang/bun).
 
 Base: misc/claude-code as in ports main at
@@ -45,14 +45,15 @@ Changes relative to 275119
   copies of itself as `bun cli ...`, which would not inherit a preload,
   and a Worker starts with globals of its own. It provides:
 
-  - Text assets. The bundle loads its uncompressed skills and docs, and
-    two .mjs skill templates, with import.meta.require and uses the
-    result as a string. Inside Anthropic's executable that returns the
-    file's contents. Stock Bun instead renders a .md to HTML inside a
-    module object, returns a .txt as a module namespace and runs a .mjs.
-    Every bundled skill then fails with "TypeError: No default value"
-    when invoked. A Bun.plugin() onLoad hook returns the plain text for
-    the content-hashed assets beside cli.
+  - Text assets. The bundle loads its uncompressed skills and docs, two
+    .mjs skill templates and (since 2.1.330) the rm guard's .sh
+    template with import.meta.require and uses the result as a string.
+    Inside Anthropic's executable that returns the file's contents.
+    Stock Bun instead renders a .md to HTML inside a module object,
+    returns a .txt as a module namespace, runs a .mjs and returns the
+    path of a .sh. Every bundled skill then fails with "TypeError: No
+    default value" when invoked. A Bun.plugin() onLoad hook returns the
+    plain text for the content-hashed assets beside cli.
   - Bun.ant.CellSegmenter: clawgod's bun-ant-shim.cjs, as in 275119
     (same pinned commit and licence settings).
   - Bun.ant.getPeerUid / getPeerPid, through getsockopt(LOCAL_PEERCRED)
@@ -73,12 +74,10 @@ Changes relative to 275119
     /dev/tty works for the commands it runs. Without it the worker logs
     bg_worker_ctty "ffi_unavailable" and runs without one.
   - Not provided, on purpose: Bun.ant.memoryPressureLevel (only called
-    on macOS), Bun.FetchSession (feature-detected, falls back to
-    fetch()), Bun.unsafe.setJITPolicy (called with ?.()),
-    Bun.ant.windowsSandboxDeniesArg (since 2.1.301; called on Windows
-    only, with ?.()), and since 2.1.316: Bun.ant.ttyName (macOS only),
-    Bun.ant.windowsFolderSecurity, windowsProcessList and
-    windowsProcessCreationTime (Windows only, feature-detected), and
+    on macOS), Bun.ant.windowsSandboxDeniesArg (since 2.1.301; called
+    on Windows only, with ?.()), and since 2.1.316: Bun.ant.ttyName
+    (macOS only), Bun.ant.windowsFolderSecurity, windowsProcessList
+    and windowsProcessCreationTime (Windows only, feature-detected), and
     Bun.ant.posixFsAt (feature-detected; without it the git
     info/exclude writer uses the path-based calls, and the macOS-only
     "anchor" file backend does not come up), and since 2.1.317:
@@ -94,7 +93,13 @@ Changes relative to 275119
     this call recognises the context's global object, and its checks
     on values leaving the sandbox use the same test. Node's isContext()
     does not recognise that object; Bun's does, so the call is never
-    reached here.
+    reached here. And since 2.1.330: Bun.ant.stringifyToBytes and
+    Bun.ant.stringifyToBytesFallbacks, which serialise an API request
+    body straight to bytes, sampled behind a feature flag and compared
+    against JSON.stringify(). The bundle checks for both before use and
+    otherwise sends the body as before.
+  - Bun.FetchSession and Bun.unsafe.setJITPolicy were on that list too,
+    until stock Bun gained both in 1.4.3; the bundle uses them since.
 
 - New files/check-bun-api.js, run in post-install against the staged
   tree: it lists every Bun.* API the bundle references and fails the
@@ -103,8 +108,10 @@ Changes relative to 275119
   example, without CellSegmenter the TUI just stays blank. It caught
   Bun.FetchSession, new in 2.1.283, Bun.ant.windowsSandboxDeniesArg,
   new in 2.1.301, the six Bun.ant APIs above that are new in 2.1.316,
-  Bun.ant.withThreadWorkingDirectory, new in 2.1.317, and
-  Bun.ant.isVmContextGlobal, new in 2.1.319. While the bundle uses
+  Bun.ant.withThreadWorkingDirectory, new in 2.1.317,
+  Bun.ant.isVmContextGlobal, new in 2.1.319, and
+  Bun.ant.stringifyToBytes and stringifyToBytesFallbacks, new in
+  2.1.330. While the bundle uses
   isVmContextGlobal, it also fails the build if vm.isContext() stops
   recognising a context's global object: without one or the other,
   the workflow and JavaScript tools would fail at run time with
@@ -196,6 +203,28 @@ Changes relative to 275119
   still 1.4.4, but another build of it: 6634fc3b5 instead of
   b82a63af8 (neither commit is in oven-sh/bun).
 
+- Updated to 2.1.330, on Bun 1.4.5: two new Bun APIs,
+  Bun.ant.stringifyToBytes and stringifyToBytesFallbacks, both
+  feature-detected, so check-bun-api.js's known-absent list gained them
+  (see above). The list also lost Bun.FetchSession and
+  Bun.unsafe.setJITPolicy, which stock Bun has had since 1.4.3
+  (check-bun-api.js: 56 APIs, all there).
+  2.1.330 also ships rm-stand-in-<hash>.sh, the template of the shell's
+  rm guard (src/utils/shell/rmGuard.ts, behind the
+  tengu_typed_hummingbird flag). The guard writes a log, a refuse and a
+  direct stand-in for rm from it into a folder of the session, runs one
+  as a self-test and puts one first on PATH. It loads the template with
+  import.meta.require, for which stock Bun returns the file's path, so
+  the stand-ins would hold a path instead of a script. The text-asset
+  hook in bun-ant-freebsd.cjs now also matches -<hash>.sh. Checked by
+  writing the stand-ins as the bundle does: the self-test exits 0, the
+  log stand-in removes a file and records first_rm_seen, and the
+  refuse stand-in refuses `rm -rf` of its own folder. post-install
+  lists the .sh with the other content-hashed files, which is what
+  check-plist caught; pkg-plist unchanged. The clawgod pin unchanged.
+  The runner and plugin eval still start their copies of claude from
+  process.execPath. The embedded Bun is still 1.4.4 (6634fc3b5).
+
 
 Fixes that also apply to 275119
 -------------------------------
@@ -249,7 +278,8 @@ it failed with ENXIO before; 2.1.317 on Bun 1.4.4: testport and the
 TUI; 2.1.319 on Bun 1.4.4: testport, the TUI, and the bundle's own
 vm sandbox self-test, context creation and context-global check, run
 on stock Bun without isVmContextGlobal; 2.1.323 and 2.1.325 on Bun
-1.4.4: testport and the TUI, in poudriere's jail left running by
+1.4.4, and 2.1.330 on Bun 1.4.5 (plus the rm guard's stand-ins, see
+above): testport and the TUI, in poudriere's jail left running by
 testport -I. Without network the first start stops at "Unable to
 connect to Anthropic services" before the theme picker, so run it where
 DNS works):
@@ -309,8 +339,8 @@ Open issues and not tested
   `<execPath> --claude-in-chrome-mcp` without the path to cli, which
   both bun and node reject.
 - Version skew: the bundle is built against Anthropic's Bun (1.4.4 plus
-  private APIs, as embedded in 2.1.325) and runs here on upstream 1.4.4,
-  so for now only the private APIs differ. check-bun-api.js
+  private APIs, as embedded in 2.1.330) and runs here on upstream 1.4.5,
+  one release ahead of it. check-bun-api.js
   catches missing APIs, not behavioural differences. clawgod's
   CellSegmenter tracks a reverse-engineered contract; if the renderer
   goes blank after an update, check for a newer clawgod commit.
