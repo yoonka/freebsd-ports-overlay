@@ -1,5 +1,6 @@
 PORTNAME=	orca-server
 DISTVERSION=	1.4.268
+PORTREVISION=	1
 CATEGORIES=	devel
 MASTER_SITES=	https://github.com/stablyai/orca/releases/download/v${DISTVERSION}/:server \
 		https://registry.npmjs.org/node-pty/-/:pty \
