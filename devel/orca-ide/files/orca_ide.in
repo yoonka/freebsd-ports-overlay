@@ -65,6 +65,11 @@ load_rc_config $name
 _orca_ide_user=${orca_ide_user}
 unset orca_ide_user
 
+# rc.subr puts ${name}_flags right after ${command}, which is daemon(8) here,
+# and daemon(8) refuses orcad's options. They go to orcad in command_args.
+_orca_ide_flags=${orca_ide_flags}
+unset orca_ide_flags
+
 pidfile="/var/run/${name}.pid"
 procname="/usr/sbin/daemon"
 command="/usr/sbin/daemon"
@@ -113,7 +118,7 @@ orca_ide_args()
 	    %%PREFIX%%/bin/orca-ide serve --bind ${orca_ide_bind} \
 	    --port ${orca_ide_port} \
 	    ${orca_ide_pairing_address:+--pairing-address ${orca_ide_pairing_address}} \
-	    ${pairing} ${orca_ide_flags}"
+	    ${pairing} ${_orca_ide_flags}"
 }
 
 orca_ide_prestart()
